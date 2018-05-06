@@ -99,3 +99,14 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Extras
+.idea
+.idea*
+.idea/
+models/
+data/
+tests/
+bazel-*
+.DS_Store
+*.ipynb
