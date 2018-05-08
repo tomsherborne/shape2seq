@@ -106,7 +106,8 @@ ENV/
 .idea/
 models/
 data/
+data
 tests/
 bazel-*
 .DS_Store
-*.ipynb
+*.ipynbdata
