@@ -19,7 +19,6 @@ class GloveLoader(object):
     def __init__(self, vocab, pkl_file, dims, load_new=False, glove_txt_file=None, oov_init=np.random.rand):
         self.vocab = vocab          # Vocab list
         self.pkl_file = pkl_file    # Location of PKL
-        # self.load_new = load_new  # Load new embeddings from a GloVe txt file
         self.dims = dims            # Dimensionality of loaded embeddings
         self.oov_init = oov_init    # How to initialise OOV embeddings
 
@@ -47,11 +46,9 @@ class GloveLoader(object):
         except FileNotFoundError as e:
             print("File %s not found" % self.pkl_file)
 
-        # Now augment the glove dict with OOV words
-        embeds = OrderedDict()
-        
         #   Get all desired embeddings from the Glove dictionary and randomly initalise the others
         #   The order of self.vocab is implicitly the embedding vocabulary index value
+        embeds = OrderedDict()
         for vocab_word in self.vocab:
             if vocab_word in glove_dict:
                 print("GloVe for word: %s found" % vocab_word)
@@ -68,8 +65,8 @@ class GloveLoader(object):
         Get new embeddings from src according to the MASTER vocab
         Thanks + credit to @jayelm for this snippet
         """
-        new_glove_src = src_file.replace('.txt', '.pkl')
         assert src_file is not None, "Must provide a GloVe embeddings source"
+        new_glove_src = src_file.replace('.txt', '.pkl')
         if self.pkl_file is not None:
             print("%s will be ignored in favour of %s" % (self.pkl_file, new_glove_src))
             self.pkl_file = new_glove_src
