@@ -29,11 +29,13 @@ class GloveLoader(object):
         # Load embeddings from Pickle
         self.embedding_dict = self.__load_glove()
         
-        # make embedding matrix of size vocab x dim
-        self.embedding_mat = np.array(list(self.embedding_dict.values()), dtype=np.float32)
+        if self.embedding_dict is not None:
+            # Make embedding matrix of size vocab x dim
+            self.embedding_mat = np.array(list(self.embedding_dict.values()), dtype=np.float32)
 
     def get_embeddings_matrix(self):
         """Return embeddings matrix"""
+        assert self.embedding_mat is not None
         print("Loading Glove embedding matrix of size:", np.shape(self.embedding_mat))
         return self.embedding_mat
         
@@ -45,7 +47,8 @@ class GloveLoader(object):
             glove_dict = pickle.load(open(self.pkl_file, 'rb'))
         except FileNotFoundError as e:
             print("File %s not found" % self.pkl_file)
-
+            return
+        
         #   Get all desired embeddings from the Glove dictionary and randomly initalise the others
         #   The order of self.vocab is implicitly the embedding vocabulary index value
         embeds = OrderedDict()
