@@ -44,8 +44,10 @@ class Config(object):
         
         # Model config -----------------------------
         self.train_cnn = False
+        self.train_embeddings = True
         self.cnn_checkpoint = None
         self.initializer = tf.contrib.layers.xavier_initializer
+        self.embedding_initializer = tf.random_uniform_initializer
         self.initializer_scale = 0.1
         self.embedding_size = 128
         self.img_embedding_size = self.embedding_size
