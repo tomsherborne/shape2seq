@@ -9,20 +9,6 @@ import numpy as np
 from src.image_network import ShapeWorldEncoder
 seq2seq = tf.contrib.seq2seq
 
-def parse_batch(batch):
-    """
-    Transform a generic ShapeWorld agreement batch to a model appropriate format
-    PREVIOUSLY IN TRAINING SCRIPTS
-    """
-    # todo use tf.sequence mask with caption len for mask (https://www.tensorflow.org/api_docs/python/tf/sequence_mask)
-    return batch
-
-# field for parse batch
-# assert 'world' in batch
-# assert 'input_seqs' in batch
-# assert 'target_seqs' in batch
-# assert 'seqs_len' in batch
-#
 
 class CaptioningModel(object):
     """
@@ -30,41 +16,34 @@ class CaptioningModel(object):
     Model is based on LRCN_1u model from (Donahue et al. 2016)[arxiv.org/abs/1411.4389]
     """
     
-    def __init__(self, config):
+    def __init__(self, config, batch_parser):
         assert config.mode in ['train', 'test', 'validation']   # validation currently unused
         
         #  Keep input config
         self.config = config
-        self.global_step = None                     # Global step Tensor.
+        self.batch_parser = batch_parser.get_batch_parser() #  An Instance of a BatchParser class
+        self.global_step = None                             #  Global step Tensor.
 
         # Input feats from Shapeworld data loading
         self.images = None                          # float32 with shape [batch, 64, 64, 3]
-        self.logits = None                          # float32 with shape [batch, 56]
         self.phase = None                           # bool with shape [1]
-        self.reference_captions = None                    # int32 with shape [batch, ?]
+        self.reference_captions = None              # int32 with shape [batch, ?]
         self.input_seqs = None                      # int32 with shape [batch, config.max_input_len]
         self.input_mask = None                      # int32 with shape [batch, config.max_input_len]
         self.target_seqs = None                     # int32 with shape [batch, config.max_input_len]
         self.input_seqs_len = None                  # int32 with shape [batch,]
         
         # Embeddings
-        self.img_embedding = None  # float32 with shape [batch, config.embedding_size]
+        self.img_embedding = None  # float32 with shape  [batch, config.embedding_size]
         self.seq_embeddings = None  # float32 with shape [batch, config.max_input_len, config.embedding_size]
         self.embedding_map = None   # float32 with shape (self.vocab_size, self.config.embedding_size)
         
-        # CNN encoder [optionally trainable]
-        self.cnn_encoder = None                         # Keep CNN as an attribute
-        self.cnn_variables = []                         # Collection of variables to restore
-        self.cnn_checkpoint = config.cnn_checkpoint     # Checkpoint directory to load variables from
+        # seq2seq specific feats
+        self.vocab_size = len(batch_parser.tgt_vocab)
+        self.target_start_tok = batch_parser.sos_token_id
+        self.target_end_tok = batch_parser.eos_token_id
+        self.max_decoding_iters = config.max_decoding_seq_len
         
-        # LSTM Decoder [trainable decoder]
-        self.lstm = tf.contrib.rnn.BasicLSTMCell(num_units=config.num_lstm_units)
-        
-        # Projection layer
-        self.projection_layer = tf.layers.Dense(units=self.vocab_size,
-                                                activation=None,
-                                                kernel_initializer=self.initializer,
-                                                use_bias=False)
         # Output feats
         self.batch_loss = None                      # A float32 scalar Tensor
         self.training_decoder_output = None         # Instance of BasicDecoderOutput
@@ -76,12 +55,19 @@ class CaptioningModel(object):
         self.embedding_initializer = config.embedding_initializer(minval=-self.config.initializer_scale,
                                                                   maxval=self.config.initializer_scale)
         
+        # CNN encoder [optionally trainable]
+        self.cnn_encoder = None  # Keep CNN as an attribute
+        self.cnn_variables = []  # Collection of variables to restore
+        self.cnn_checkpoint = config.cnn_checkpoint  # Checkpoint directory to load variables from
 
-        # seq2seq specific feats todo: fill these in from the vocab
-        self.vocab_size = None
-        self.target_start_tok = None
-        self.target_end_tok = None
-        self.max_decoding_iters = None
+        # LSTM Decoder [trainable decoder]
+        self.lstm = tf.contrib.rnn.BasicLSTMCell(num_units=config.num_lstm_units)
+
+        # Projection layer [trainable decoder]
+        self.projection_layer = tf.layers.Dense(units=self.vocab_size,
+                                                activation=None,
+                                                kernel_initializer=self.initializer,
+                                                use_bias=False)
 
     def is_training(self):
         return self.config.mode == "train"
@@ -91,7 +77,7 @@ class CaptioningModel(object):
     
     def build_model(self, batch, embedding_init=None):
         """Construct the TF computation graph for the IC model"""
-        assert self.target_start_tok is not None # todo: fix this catch to stop me running bad models
+        assert self.target_start_tok is not None
         assert self.vocab_size is not None, "Setup for shape2seq is not complete"
         
         self.__build_inputs(batch)
@@ -101,7 +87,6 @@ class CaptioningModel(object):
         self.__build_seq_embeddings(embedding_init)
         
         # Conditional on mode: setup decoder models todo: can we combine these?
-        
         if self.is_testing():
             self.__build_inference_graph()
         else:
@@ -121,15 +106,17 @@ class CaptioningModel(object):
         
         # Parsing for input/target sequences only for training
         if self.is_training():
-            batch = parse_batch(batch)
+            batch = self.batch_parser(batch)
         
             assert 'input_seqs' in batch
             assert 'target_seqs' in batch
             assert 'seqs_len' in batch
-
+            assert 'input_mask' in batch
+            
             self.input_seqs = batch['input_seqs']
             self.target_seqs = batch['target_seqs']
-            self.input_seqs_len = batch['seqs_len']
+            self.input_mask = tf.cast(batch['input_mask'], dtype=tf.float32)
+            self.input_seqs_len = tf.squeeze(batch['seqs_len'])
         else:
             # Get reference captions if testing
             self.reference_captions = batch['caption']
@@ -166,15 +153,16 @@ class CaptioningModel(object):
                 embedding_map = tf.get_variable(name="seq_map",
                                                 shape=embed_shape,
                                                 initializer=self.embedding_initializer,
-                                                trainable=True)
+                                                trainable=self.config.train_embeddings)
             
             # Lookup on GPU
             seq_embeddings = tf.nn.embedding_lookup(embedding_map, self.input_seqs)
         
         self.embedding_map = embedding_map      # for recurrent decoding
-        self.seq_embeddings = seq_embeddings    # for input sequences
-        
-            
+        self.seq_embeddings = seq_embeddings    # for input sequences to the LSTM
+
+
+    # todo: can both build_X_graph fns be combined?
     def __build_inference_graph(self):
         """
         Build the inference graph for evaluating captioning
@@ -188,7 +176,7 @@ class CaptioningModel(object):
         """
         assert self.config.batch_size == 1, "Batch size must be 1 for inference!"
         
-        with tf.variable_scope("lstm", initializer=self.initializer):
+        with tf.variable_scope("lstm"):
             # Image embedding batch size sets the LSTM initial state size
             lstm_batch_size = tf.shape(self.img_embedding)[0]
     
@@ -211,26 +199,22 @@ class CaptioningModel(object):
                                                            start_tokens=tf.fill((1), self.target_start_tok),
                                                            end_token=self.target_end_tok)
                 
-            elif self.config.inference_sample:
+            else:
                 inf_helper = seq2seq.SampleEmbeddingHelper(embedding=inf_joint_embeddings,
                                                            start_tokens=tf.fill((1), self.target_start_tok),
                                                            end_token=self.target_end_tok,
-                                                           softmax_temperature=self.config.softmax_temperature
-                                                           )
+                                                           softmax_temperature=self.config.softmax_temperature)
 
             inference_decoder = seq2seq.BasicDecoder(cell=self.lstm,
-                                                    helper=inf_helper,
-                                                    initial_state=zero_state,
-                                                    output_layer=self.projection_layer)
+                                                     helper=inf_helper,
+                                                     initial_state=zero_state,
+                                                     output_layer=self.projection_layer)
 
             lstm_outputs, _, _ = seq2seq.dynamic_decode(inference_decoder,
                                                         maximum_iterations=self.config.max_decoding_seq_len)
-            import pdb;
-            pdb.set_trace()
+            import pdb;pdb.set_trace()
 
-            # outputs, _, _ = seq2seq.dynamic_decode(inference_decoder, maximum_iterations=maxit)
-            # translations = outputs.sample_id
-
+        self.inf_decoder_output = lstm_outputs
 
     # todo: can both build_X_graph fns be combined?
     def __build_training_graph(self):
@@ -246,7 +230,7 @@ class CaptioningModel(object):
         5. Compute Loss op
         """
         
-        with tf.variable_scope("lstm", initializer=self.initializer) as lstm_scope:
+        with tf.variable_scope("lstm", initializer=self.initializer):
             # Image embedding batch size sets the LSTM initial state size
             lstm_batch_size = tf.shape(self.input_seqs)[0]
             
@@ -268,8 +252,7 @@ class CaptioningModel(object):
             decoding_helper = seq2seq.TrainingHelper(inputs=joint_embedding,
                                                      sequence_length=self.input_seqs_len,
                                                      time_major=True,
-                                                     name="dec_helper"
-                                                     )
+                                                     name="dec_helper")
 
             training_decoder = seq2seq.BasicDecoder(cell=self.lstm,
                                                     helper=decoding_helper,
@@ -277,13 +260,12 @@ class CaptioningModel(object):
                                                     output_layer=self.projection_layer)
 
             lstm_outputs, _, output_seq_lens = seq2seq.dynamic_decode(training_decoder)
-        import pdb;pdb.set_trace()
+        
 
         # outputs is a vector of pre-softmax distributions over the vocab size [batch_size,max_seq_len, vocab_size]
-        lstm_outputs = lstm_outputs.rnn_output
-        assert tf.shape(lstm_outputs)[0] == self.config.batch_size
+        self.training_decoder_output = lstm_outputs
         
-        import pdb;pdb.set_trace()
+        lstm_outputs = lstm_outputs.rnn_output
         
         # Weighted softmax cross entropy todo: look at cosine-dist minimisation loss
         loss_ = seq2seq.sequence_loss(logits=lstm_outputs,

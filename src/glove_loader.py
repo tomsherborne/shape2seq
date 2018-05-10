@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 import csv
 import pickle
 from collections import OrderedDict
@@ -16,16 +17,17 @@ MASTER_VOCAB = ('.', 'a', 'above', 'all', 'an', 'and', 'are', 'as', 'at', 'behin
 
 class GloveLoader(object):
     """Load Glove Embeddings of dims-size for vocab words"""
-    def __init__(self, vocab, pkl_file, dims, load_new=False, glove_txt_file=None, oov_init=np.random.rand):
-        self.vocab = vocab          # Vocab list
-        self.pkl_file = pkl_file    # Location of PKL
+    def __init__(self, vocab, glove_dir, dims, load_new=False, glove_txt_file=None, oov_init=np.random.rand):
+        self.vocab = vocab          # Vocab dict
         self.dims = dims            # Dimensionality of loaded embeddings
         self.oov_init = oov_init    # How to initialise OOV embeddings
 
         if load_new:
             # Generate new embeddings from file
             self.__parse_new_embeddings(glove_txt_file)
-        
+        else:
+            self.pkl_file = glove_dir + os.sep + "glove.6B.%dd.pkl" % (dims)
+            
         # Load embeddings from Pickle
         self.embedding_dict = self.__load_glove()
         
@@ -52,15 +54,13 @@ class GloveLoader(object):
         #   Get all desired embeddings from the Glove dictionary and randomly initalise the others
         #   The order of self.vocab is implicitly the embedding vocabulary index value
         embeds = OrderedDict()
-        for vocab_word in self.vocab:
-            if vocab_word in glove_dict:
-                print("GloVe for word: %s found" % vocab_word)
-                embeds[vocab_word] = glove_dict[vocab_word]
+        for word, key in self.vocab.items():
+            if word in glove_dict:
+                print("GloVe for word: %s found" % word)
+                embeds[word] = glove_dict[word]
             else:
-                print("GloVe for word: %s not found" % vocab_word)
-                embeds[vocab_word] = self.oov_init(self.dims)
-
-            embeds[vocab_word] = glove_dict[vocab_word]
+                print("! GloVe for word: %s not found" % word)
+                embeds[word] = self.oov_init(self.dims)
         return embeds
         
     def __parse_new_embeddings(self, src_file):
