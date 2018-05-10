@@ -39,16 +39,15 @@ class CaptioningModel(object):
 
         # Input feats from Shapeworld data loading
         self.images = None                          # float32 with shape [batch, 64, 64, 3]
-        self.logits = None                          # float32 with shape [batch, 56]
         self.phase = None                           # bool with shape [1]
-        self.reference_captions = None                    # int32 with shape [batch, ?]
+        self.reference_captions = None              # int32 with shape [batch, ?]
         self.input_seqs = None                      # int32 with shape [batch, config.max_input_len]
         self.input_mask = None                      # int32 with shape [batch, config.max_input_len]
         self.target_seqs = None                     # int32 with shape [batch, config.max_input_len]
         self.input_seqs_len = None                  # int32 with shape [batch,]
         
         # Embeddings
-        self.img_embedding = None  # float32 with shape [batch, config.embedding_size]
+        self.img_embedding = None  # float32 with shape  [batch, config.embedding_size]
         self.seq_embeddings = None  # float32 with shape [batch, config.max_input_len, config.embedding_size]
         self.embedding_map = None   # float32 with shape (self.vocab_size, self.config.embedding_size)
         
@@ -166,15 +165,16 @@ class CaptioningModel(object):
                 embedding_map = tf.get_variable(name="seq_map",
                                                 shape=embed_shape,
                                                 initializer=self.embedding_initializer,
-                                                trainable=True)
+                                                trainable=self.config.train_embeddings)
             
             # Lookup on GPU
             seq_embeddings = tf.nn.embedding_lookup(embedding_map, self.input_seqs)
         
         self.embedding_map = embedding_map      # for recurrent decoding
-        self.seq_embeddings = seq_embeddings    # for input sequences
-        
-            
+        self.seq_embeddings = seq_embeddings    # for input sequences to the LSTM
+
+
+    # todo: can both build_X_graph fns be combined?
     def __build_inference_graph(self):
         """
         Build the inference graph for evaluating captioning
@@ -188,7 +188,7 @@ class CaptioningModel(object):
         """
         assert self.config.batch_size == 1, "Batch size must be 1 for inference!"
         
-        with tf.variable_scope("lstm", initializer=self.initializer):
+        with tf.variable_scope("lstm"):
             # Image embedding batch size sets the LSTM initial state size
             lstm_batch_size = tf.shape(self.img_embedding)[0]
     
@@ -211,26 +211,23 @@ class CaptioningModel(object):
                                                            start_tokens=tf.fill((1), self.target_start_tok),
                                                            end_token=self.target_end_tok)
                 
-            elif self.config.inference_sample:
+            else:
                 inf_helper = seq2seq.SampleEmbeddingHelper(embedding=inf_joint_embeddings,
                                                            start_tokens=tf.fill((1), self.target_start_tok),
                                                            end_token=self.target_end_tok,
-                                                           softmax_temperature=self.config.softmax_temperature
-                                                           )
+                                                           softmax_temperature=self.config.softmax_temperature)
 
             inference_decoder = seq2seq.BasicDecoder(cell=self.lstm,
-                                                    helper=inf_helper,
-                                                    initial_state=zero_state,
-                                                    output_layer=self.projection_layer)
+                                                     helper=inf_helper,
+                                                     initial_state=zero_state,
+                                                     output_layer=self.projection_layer)
 
             lstm_outputs, _, _ = seq2seq.dynamic_decode(inference_decoder,
                                                         maximum_iterations=self.config.max_decoding_seq_len)
             import pdb;
             pdb.set_trace()
 
-            # outputs, _, _ = seq2seq.dynamic_decode(inference_decoder, maximum_iterations=maxit)
-            # translations = outputs.sample_id
-
+        self.inf_decoder_output = lstm_outputs
 
     # todo: can both build_X_graph fns be combined?
     def __build_training_graph(self):
@@ -246,7 +243,7 @@ class CaptioningModel(object):
         5. Compute Loss op
         """
         
-        with tf.variable_scope("lstm", initializer=self.initializer) as lstm_scope:
+        with tf.variable_scope("lstm"):
             # Image embedding batch size sets the LSTM initial state size
             lstm_batch_size = tf.shape(self.input_seqs)[0]
             
@@ -268,8 +265,7 @@ class CaptioningModel(object):
             decoding_helper = seq2seq.TrainingHelper(inputs=joint_embedding,
                                                      sequence_length=self.input_seqs_len,
                                                      time_major=True,
-                                                     name="dec_helper"
-                                                     )
+                                                     name="dec_helper")
 
             training_decoder = seq2seq.BasicDecoder(cell=self.lstm,
                                                     helper=decoding_helper,
@@ -277,10 +273,14 @@ class CaptioningModel(object):
                                                     output_layer=self.projection_layer)
 
             lstm_outputs, _, output_seq_lens = seq2seq.dynamic_decode(training_decoder)
+        
         import pdb;pdb.set_trace()
 
         # outputs is a vector of pre-softmax distributions over the vocab size [batch_size,max_seq_len, vocab_size]
+        self.training_decoder_output = lstm_outputs
+        
         lstm_outputs = lstm_outputs.rnn_output
+        
         assert tf.shape(lstm_outputs)[0] == self.config.batch_size
         
         import pdb;pdb.set_trace()
