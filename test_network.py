@@ -122,7 +122,7 @@ def main(_):
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
-            if inf_cap:
+            if np.any(inf_cap):
                 print("%d REF -> %s | INF -> %s" %
                       (b_idx, " ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
                 
