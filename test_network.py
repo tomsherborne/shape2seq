@@ -126,11 +126,19 @@ def main(_):
             print("REF -> %s | INF -> %s" %
                   (" ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
             
-            correct_cap = np.all(inf_cap[1:-1] == ref_cap[1:-1])
+            ref_cap = [tok for tok in ref_cap if tok is not parser.sos_token_id or
+                                                 tok is not parser.eos_token_id]
+            
+            inf_cap = [tok for tok in inf_cap if tok is not parser.sos_token_id or
+                                                 tok is not parser.eos_token_id]
+            
+            correct_cap = np.all(inf_cap == ref_cap)
             correct_accumulator.append(int(correct_cap))
 
         avg_acc = np.mean(correct_accumulator).squeeze()
         std_acc = np.std(correct_accumulator).squeeze()
+        
+        print("Accuracy for %s -> %.5f ± %.5f" % (FLAGS.parse_type, avg_acc, std_acc))
         
         new_summ = tf.Summary()
         # new_summ.value.add(tag="test/avg_loss", simple_value=avg_loss)
