@@ -121,15 +121,17 @@ def main(_):
                                                            feed_dict={model.phase : 0})
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
-            print("REF -> %s | INF -> %s" %
-                  (" ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
             
-            ref_cap = [tok for tok in ref_cap if int(tok) not in parser.token_filter]
-            
-            inf_cap = [tok for tok in inf_cap if int(tok) not in parser.token_filter]
-            
-            correct_cap = np.all(inf_cap == ref_cap)
-            correct_accumulator.append(int(correct_cap))
+            if inf_cap:
+                print("%d REF -> %s | INF -> %s" %
+                      (b_idx, " ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
+                
+                ref_cap = [tok for tok in ref_cap if int(tok) not in parser.token_filter]
+                
+                inf_cap = [tok for tok in inf_cap if int(tok) not in parser.token_filter]
+                
+                correct_cap = np.all(inf_cap == ref_cap)
+                correct_accumulator.append(int(correct_cap))
 
         avg_acc = np.mean(correct_accumulator).squeeze()
         std_acc = np.std(correct_accumulator).squeeze()
