@@ -126,11 +126,9 @@ def main(_):
             print("REF -> %s | INF -> %s" %
                   (" ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
             
-            ref_cap = [tok for tok in ref_cap if tok is not parser.sos_token_id or
-                                                 tok is not parser.eos_token_id]
+            ref_cap = [tok for tok in ref_cap if int(tok) not in parser.token_filter]
             
-            inf_cap = [tok for tok in inf_cap if tok is not parser.sos_token_id or
-                                                 tok is not parser.eos_token_id]
+            inf_cap = [tok for tok in inf_cap if int(tok) not in parser.token_filter]
             
             correct_cap = np.all(inf_cap == ref_cap)
             correct_accumulator.append(int(correct_cap))

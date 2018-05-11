@@ -51,6 +51,7 @@ class SimpleBatchParser(object):
         
         self.sos_token_id = self.tgt_vocab[sos_token]
         self.eos_token_id = self.tgt_vocab[eos_token]
+        self.token_filter = [self.sos_token_id, self.eos_token_id]
         self.max_seq_len = max_seq_len
         
     def generate_map(self):
