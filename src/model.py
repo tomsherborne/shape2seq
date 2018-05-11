@@ -115,7 +115,8 @@ class CaptioningModel(object):
         self.input_seqs = batch['input_seqs']
         self.target_seqs = batch['target_seqs']
         self.input_mask = tf.cast(batch['input_mask'], dtype=tf.float32)
-        self.input_seqs_len = tf.squeeze(batch['seqs_len'])
+        # self.input_seqs_len = tf.squeeze(batch['seqs_len'])
+        self.input_seqs_len = [3]
         
         # Get reference captions if testing
         self.reference_captions = batch['complete_seqs']

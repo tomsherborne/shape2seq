@@ -9,7 +9,6 @@ import os, time, sys
 
 import numpy as np
 import tensorflow as tf
-from tqdm import trange
 seq2seq = tf.contrib.seq2seq
 
 from shapeworld import Dataset, tf_util
@@ -116,13 +115,12 @@ def main(_):
 
         correct_accumulator = []
     
-        for b_idx in trange(num_imgs):
+        for b_idx in range(num_imgs):
             reference_caps, inf_decoder_outputs = sess.run(fetches=[model.reference_captions,
                                                                            model.inf_decoder_output],
                                                            feed_dict={model.phase : 0})
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
-            print(b_idx)
             print("REF -> %s | INF -> %s" %
                   (" ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
             
