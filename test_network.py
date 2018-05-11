@@ -70,7 +70,9 @@ def main(_):
         
         model = CaptioningModel(config=params, batch_parser=parser)
         model.build_model(batch)
-    
+        
+        restore_model = tf.train.Saver()
+
         tf.logging.info("Network built...")
         
     # TESTING SETUP ------------------------------------------------------------
@@ -91,7 +93,6 @@ def main(_):
     assert model_ckpt, "Checkpoints could not be loaded, check that train_path %s exists" % train_path
 
     tf.logging.info("Loading checkpoint %s", model_ckpt)
-    restore_model = tf.train.Saver()
 
     with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         coordinator = tf.train.Coordinator()
@@ -99,7 +100,10 @@ def main(_):
 
         restore_model.restore(sess, model_ckpt)
         tf.logging.info("Model restored!")
-    
+
+        # Initialise everything
+        sess.run([tf.tables_initializer()])
+
         #  Freeze graph
         sess.graph.finalize()
     
@@ -107,10 +111,7 @@ def main(_):
         global_step = tf.train.global_step(sess, model.global_step)
         tf.logging.info("Successfully loaded %s at global step = %d.",
                         os.path.basename(model_ckpt), global_step)
-    
-        # Initialise everything
-        sess.run([tf.tables_initializer()])
-        
+
         start_train_time = time.time()
 
         correct_accumulator = []
