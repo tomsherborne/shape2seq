@@ -115,32 +115,27 @@ def main(_):
         start_train_time = time.time()
 
         correct_accumulator = []
-        loss_accumulator = []
-        
+    
         for b_idx in trange(num_imgs):
-            reference_caps, inf_decoder_outputs, loss_ = sess.run(fetches=[model.reference_captions,
-                                                                           model.inf_decoder_output,
-                                                                           model.batch_loss],
-                                                                  feed_dict={model.phase : 0})
+            reference_caps, inf_decoder_outputs = sess.run(fetches=[model.reference_captions,
+                                                                           model.inf_decoder_output],
+                                                           feed_dict={model.phase : 0})
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             print(b_idx)
             print("REF -> %s | INF -> %s" %
                   (" ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
             
-            correct_cap = inf_cap[1:-1] == ref_cap[1:-1]
+            correct_cap = np.all(inf_cap[1:-1] == ref_cap[1:-1])
             correct_accumulator.append(int(correct_cap))
-            loss_accumulator += loss_
             import pdb;pdb.set_trace()
 
-        avg_loss = np.mean(loss_accumulator).squeeze()
-        std_loss = np.std(loss_accumulator).squeeze()
         avg_acc = np.mean(correct_accumulator).squeeze()
         std_acc = np.std(correct_accumulator).squeeze()
         
         new_summ = tf.Summary()
-        new_summ.value.add(tag="test/avg_loss", simple_value=avg_loss)
-        new_summ.value.add(tag="test/std_loss", simple_value=std_loss)
+        # new_summ.value.add(tag="test/avg_loss", simple_value=avg_loss)
+        # new_summ.value.add(tag="test/std_loss", simple_value=std_loss)
         new_summ.value.add(tag="test/avg_loss_%s" % FLAGS.parse_type, simple_value=avg_acc)
         new_summ.value.add(tag="test/std_loss_%s" % FLAGS.parse_type, simple_value=std_acc)
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
