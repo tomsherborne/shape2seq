@@ -262,15 +262,11 @@ class CaptioningModel(object):
                                                     output_layer=self.projection_layer)
 
             lstm_outputs, _, output_seq_lens = seq2seq.dynamic_decode(training_decoder)
-        
-        import pdb;pdb.set_trace()
 
         # outputs is a vector of pre-softmax distributions over the vocab size [batch_size,max_seq_len, vocab_size]
         self.training_decoder_output = lstm_outputs
         
         lstm_outputs = lstm_outputs.rnn_output
-        
-        assert tf.shape(lstm_outputs)[0] == self.config.batch_size
         
         # Weighted softmax cross entropy todo: look at cosine-dist minimisation loss
         loss_ = seq2seq.sequence_loss(logits=lstm_outputs,

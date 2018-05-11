@@ -122,7 +122,7 @@ def main(_):
                                                                            model.batch_loss],
                                                                   feed_dict={model.phase : 0})
             ref_cap = reference_caps.squeeze()
-            inf_cap = inf_decoder_outputs.squeeze()
+            inf_cap = inf_decoder_outputs.sample_id.squeeze()
             print(b_idx)
             print("REF -> %s | INF -> %s" %
                   (" ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))

@@ -40,7 +40,7 @@ def main(_):
     assert FLAGS.data_dir, "Must specify data location!"
     assert FLAGS.log_dir, "Must specify experiment to log to!"
     assert FLAGS.exp_tag, "Must specify experiment tag subfolder to log_dir %s" % FLAGS.log_dir
-    assert FLAGS.cnn_checkpoint, "Must specify where to load CNN checkpoint from!"
+    assert FLAGS.cnn_ckpt, "Must specify where to load CNN checkpoint from!"
     assert FLAGS.parse_type in ["shape", "color", "shape_color"], "Must specify a valid batch parser type"
 
     # Build saving folders
@@ -75,7 +75,7 @@ def main(_):
 
     # Get parsing and parameter feats
     params = Config(mode="train", sw_specification=dataset.specification())
-    params.cnn_checkpoint = FLAGS.cnn_checkpoint
+    params.cnn_checkpoint = FLAGS.cnn_ckpt
     params.batch_size = FLAGS.batch_size
     
     # MODEL SETUP ------------------------------------------------------------
@@ -166,7 +166,7 @@ def main(_):
                     _, loss_, = sess.run(fetches=[train_op, model.batch_loss])
                     
                     logging_loss.append(loss_)
-                    
+
             logging_saver.save(sess=sess,
                                save_path=train_path + os.sep + "model",
                                global_step=tf.train.global_step(sess, model.global_step))
