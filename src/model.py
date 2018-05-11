@@ -187,12 +187,10 @@ class CaptioningModel(object):
             #   This is accomplished by augmenting the embedding matrix with the image embedding.
             #   This limits the batch size to be 1 as the img_embed concat op has to renew for each new image
             
+            # shape should be [vocab_size, word+img embed size]
             inf_joint_embeddings = tf.concat((self.embedding_map,
                                               tf.tile(self.img_embedding, [self.vocab_size, 1])),
                                              axis=-1)
-            
-            # shape should be [vocab_size, word+img embed size]
-            assert tf.shape(inf_joint_embeddings) == (self.vocab_size, self.config.joint_embedding_size)
             
             if self.config.inference_greedy:
                 # Greedy embedding helper for the output

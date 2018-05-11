@@ -128,7 +128,6 @@ def main(_):
             
             correct_cap = np.all(inf_cap[1:-1] == ref_cap[1:-1])
             correct_accumulator.append(int(correct_cap))
-            import pdb;pdb.set_trace()
 
         avg_acc = np.mean(correct_accumulator).squeeze()
         std_acc = np.std(correct_accumulator).squeeze()
