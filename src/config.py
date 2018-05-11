@@ -52,6 +52,7 @@ class Config(object):
         self.embedding_size = 50
         self.img_embedding_size = 128
         self.joint_embedding_size = 128 + 50
+
         self.num_lstm_units = self.joint_embedding_size
         
         #   Training config -----------------------------
