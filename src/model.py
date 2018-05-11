@@ -177,8 +177,9 @@ class CaptioningModel(object):
         
         with tf.variable_scope("lstm"):
             # Image embedding batch size sets the LSTM initial state size
-            lstm_batch_size = tf.shape(self.img_embedding)[0]
-    
+
+            lstm_batch_size = 1  # Must be static for seq2seq lib decoding...
+
             zero_state = self.lstm.zero_state(batch_size=lstm_batch_size,
                                               dtype=tf.float32)
 
@@ -186,21 +187,22 @@ class CaptioningModel(object):
             #   This is accomplished by augmenting the embedding matrix with the image embedding.
             #   This limits the batch size to be 1 as the img_embed concat op has to renew for each new image
             
-            inf_joint_embeddings = tf.concat((self.embedding_map, tf.squeeze(self.img_embedding)), axis=-1)
+            inf_joint_embeddings = tf.concat((self.embedding_map,
+                                              tf.tile(self.img_embedding, [self.vocab_size, 1])),
+                                             axis=-1)
             
-            import pdb; pdb.set_trace()
             # shape should be [vocab_size, word+img embed size]
             assert tf.shape(inf_joint_embeddings) == (self.vocab_size, self.config.joint_embedding_size)
             
             if self.config.inference_greedy:
                 # Greedy embedding helper for the output
                 inf_helper = seq2seq.GreedyEmbeddingHelper(embedding=inf_joint_embeddings,
-                                                           start_tokens=tf.fill((1), self.target_start_tok),
+                                                           start_tokens=tf.fill([self.config.batch_size], self.target_start_tok),
                                                            end_token=self.target_end_tok)
                 
             else:
                 inf_helper = seq2seq.SampleEmbeddingHelper(embedding=inf_joint_embeddings,
-                                                           start_tokens=tf.fill((1), self.target_start_tok),
+                                                           start_tokens=tf.fill([self.config.batch_size], self.target_start_tok),
                                                            end_token=self.target_end_tok,
                                                            softmax_temperature=self.config.softmax_temperature)
 
@@ -211,9 +213,6 @@ class CaptioningModel(object):
 
             lstm_outputs, _, _ = seq2seq.dynamic_decode(inference_decoder,
                                                         maximum_iterations=self.config.max_decoding_seq_len)
-
-            import pdb;pdb.set_trace()
-
 
         self.inf_decoder_output = lstm_outputs
 
