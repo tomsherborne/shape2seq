@@ -139,7 +139,8 @@ def main(_):
 
         logging_loss = []
         logging_points = np.linspace(0, params.num_steps_per_epoch, 4, endpoint=False, dtype=np.int32)
-
+        logging_points = np.fliplr([params.num_steps_per_epoch - logging_points])[0]
+        
         for c_epoch in range(0, params.num_epochs):
             tf.logging.info("Running epoch %d" % c_epoch)
             for c_step in trange(0, params.num_steps_per_epoch):

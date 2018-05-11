@@ -23,6 +23,14 @@ python3 train_network.py --data_dir=$DATA_DIR \
                          --parse_type=$PARSE_TYPE \
                          --exp_tag=$EXP_TAG
 
+python3 test_network.py --data_dir=$DATA_DIR \
+                        --log_dir=$LOG_DIR \
+                        --cnn_ckpt=$CNN_CKPT \
+                        --parse_type=$PARSE_TYPE \
+                        --exp_tag=$EXP_TAG \
+                        --num_imgs=10
+
+
 # Experiment2
 DATA_DIR="${PWD}/data/simple_1"
 LOG_DIR="${PWD}/models/exp7"

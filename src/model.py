@@ -105,22 +105,21 @@ class CaptioningModel(object):
         assert 'caption' in batch
         
         # Parsing for input/target sequences only for training
-        if self.is_training():
-            batch = self.batch_parser(batch)
+        batch = self.batch_parser(batch)
+    
+        assert 'input_seqs' in batch
+        assert 'target_seqs' in batch
+        assert 'seqs_len' in batch
+        assert 'input_mask' in batch
         
-            assert 'input_seqs' in batch
-            assert 'target_seqs' in batch
-            assert 'seqs_len' in batch
-            assert 'input_mask' in batch
-            
-            self.input_seqs = batch['input_seqs']
-            self.target_seqs = batch['target_seqs']
-            self.input_mask = tf.cast(batch['input_mask'], dtype=tf.float32)
-            self.input_seqs_len = tf.squeeze(batch['seqs_len'])
-        else:
-            # Get reference captions if testing
-            self.reference_captions = batch['caption']
+        self.input_seqs = batch['input_seqs']
+        self.target_seqs = batch['target_seqs']
+        self.input_mask = tf.cast(batch['input_mask'], dtype=tf.float32)
+        self.input_seqs_len = tf.squeeze(batch['seqs_len'])
         
+        # Get reference captions if testing
+        self.reference_captions = batch['complete_seqs']
+    
         # Batch normalisation phase is high for training, low for testing
         self.phase = tf.placeholder_with_default(input=tf.constant(True, dtype=tf.bool), shape=None, name='phase')
 
