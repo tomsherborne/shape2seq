@@ -133,7 +133,7 @@ def main(_):
                 correct_cap = np.all(inf_cap == ref_cap)
                 correct_accumulator.append(int(correct_cap))
             else:
-                print("Skipping %d as inf_cap %s is malformed" % inf_cap)
+                print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
             
         avg_acc = np.mean(correct_accumulator).squeeze()
         std_acc = np.std(correct_accumulator).squeeze()
@@ -141,8 +141,12 @@ def main(_):
         print("Accuracy for %s -> %.5f ± %.5f" % (FLAGS.parse_type, avg_acc, std_acc))
         
         new_summ = tf.Summary()
-        new_summ.value.add(tag="test/avg_acc_%s" % FLAGS.parse_type, simple_value=avg_acc)
-        new_summ.value.add(tag="test/std_acc_%s" % FLAGS.parse_type, simple_value=std_acc)
+        new_summ.value.add(tag="test/avg_acc_%s_%s" % (FLAGS.parse_type, FLAGS.data_partition),
+                           simple_value=avg_acc)
+        
+        new_summ.value.add(tag="test/std_acc_%s_%s" % (FLAGS.parse_type, FLAGS.data_partition),
+                           simple_value=std_acc)
+        
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
         
