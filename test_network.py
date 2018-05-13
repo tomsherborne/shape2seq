@@ -122,7 +122,7 @@ def main(_):
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
-            if np.any(inf_cap is not None) and np.any(ref_cap is not None):
+            if inf_cap.ndim > 0 and inf_cap.ndim > 0:
                 print("%d REF -> %s | INF -> %s" %
                       (b_idx, " ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
                 
@@ -132,7 +132,9 @@ def main(_):
                 
                 correct_cap = np.all(inf_cap == ref_cap)
                 correct_accumulator.append(int(correct_cap))
-
+            else:
+                print("Skipping %d as inf_cap %s is malformed" % inf_cap)
+            
         avg_acc = np.mean(correct_accumulator).squeeze()
         std_acc = np.std(correct_accumulator).squeeze()
         
