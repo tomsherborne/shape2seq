@@ -14,7 +14,6 @@ seq2seq = tf.contrib.seq2seq
 from shapeworld import Dataset, tf_util
 
 from src.model import CaptioningModel
-from src.glove_loader import GloveLoader
 from src.batch_parser import SimpleBatchParser
 from src.config import Config
 
@@ -114,7 +113,8 @@ def main(_):
         start_train_time = time.time()
 
         correct_accumulator = []
-    
+        misses = 0
+        
         for b_idx in range(num_imgs):
             reference_caps, inf_decoder_outputs = sess.run(fetches=[model.reference_captions,
                                                                            model.inf_decoder_output],
@@ -134,11 +134,12 @@ def main(_):
                 correct_accumulator.append(int(correct_cap))
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
-            
+                misses+=1
+                
         avg_acc = np.mean(correct_accumulator).squeeze()
         std_acc = np.std(correct_accumulator).squeeze()
         
-        print("Accuracy for %s -> %.5f ± %.5f" % (FLAGS.parse_type, avg_acc, std_acc))
+        print("Accuracy: %s -> %.5f ± %.5f | Misses: %d " % (FLAGS.parse_type, avg_acc, std_acc, misses))
         
         new_summ = tf.Summary()
         new_summ.value.add(tag="test/avg_acc_%s_%s" % (FLAGS.parse_type, FLAGS.data_partition),

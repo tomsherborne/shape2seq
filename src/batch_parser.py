@@ -19,16 +19,20 @@ SHAPE_COLOR_VOCAB = AUX_VOCAB + ['blue', 'circle', 'cross', 'cyan', 'ellipse', '
                                  'rectangle', 'red', 'semicircle', 'square', 'triangle', 'yellow']
 SHAPE_VOCAB = AUX_VOCAB + ['circle', 'cross', 'ellipse', 'pentagon', 'rectangle', 'semicircle', 'square', 'triangle']
 COLOR_VOCAB = AUX_VOCAB + ['blue', 'cyan', 'gray', 'green', 'magenta', 'red', 'yellow']
-TGT_VOCAB_ = {"shape": SHAPE_VOCAB, "color": COLOR_VOCAB, "shape_color": SHAPE_COLOR_VOCAB}
+STANDARD_VOCAB = AUX_VOCAB + ['.', 'a', 'blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'is', 'magenta',
+                        'pentagon', 'rectangle', 'red', 'semicircle', 'shape', 'square', 'there', 'triangle', 'yellow']
+
+TGT_VOCAB_ = {"shape": SHAPE_VOCAB, "color": COLOR_VOCAB, "shape_color": SHAPE_COLOR_VOCAB, "standard": STANDARD_VOCAB}
 
 
 class SimpleBatchParser(object):
     """
     Initialise a batch parsing function to return the correct sequences and vocabulary for training a specific model
     Modes are:
-        shape_color: "there is a red square" -> "<S> red square </S>"
-        shape: "there is a red square" -> "<S> square </S>"
-        color: "there is a red square" -> "<S> red </S>"
+        standard:  "there is a red square ." -> "<S> there is a red square </S>"
+        shape_color: "there is a red square ." -> "<S> red square </S>"
+        shape: "there is a red square ." -> "<S> square </S>"
+        color: "there is a red square ." -> "<S> red </S>"
     
     The get_batch_parser() fn returns function to perform this functionality
     """
@@ -37,7 +41,7 @@ class SimpleBatchParser(object):
         Initialise the batch parser based upon the desired return object
         """
         
-        assert batch_type in ['shape', 'color', 'shape_color']
+        assert batch_type in ['shape', 'color', 'shape_color', 'standard']
         self.batch_type = batch_type    # Controls which kind of batch object is returned
         
         self.src_vocab = {v: i for i, v in enumerate(SIMPLE_SRC_VOCAB)}
@@ -84,6 +88,12 @@ class SimpleBatchParser(object):
                           [self.eos_token_id]],
                          axis=0)
     
+    def crop_standard(self, row):
+        return tf.concat([[self.sos_token_id],
+                          tf.map_fn(lambda elem: self.vocab_map.lookup(elem), row[:-1]),
+                          [self.eos_token_id]],
+                         axis=0)
+
     def split_seqs(self, row):
         # Cast row of vocab indices
         row = tf.cast(row, dtype=tf.int32)
@@ -111,9 +121,11 @@ class SimpleBatchParser(object):
         elif self.batch_type == "color":
             crop_fn = self.crop_color
             
-        else:
+        elif self.batch_type == "shape_color":
             crop_fn = self.crop_shape_color
-        
+        else:
+            crop_fn = self.crop_standard
+
         split_fn = self.split_seqs
         
         def batch_parser(batch):
