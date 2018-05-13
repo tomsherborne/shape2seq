@@ -122,7 +122,7 @@ def main(_):
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
-            if np.any(inf_cap):
+            if np.any(inf_cap) and np.any(ref_cap):
                 print("%d REF -> %s | INF -> %s" %
                       (b_idx, " ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
                 
@@ -139,10 +139,8 @@ def main(_):
         print("Accuracy for %s -> %.5f ± %.5f" % (FLAGS.parse_type, avg_acc, std_acc))
         
         new_summ = tf.Summary()
-        # new_summ.value.add(tag="test/avg_loss", simple_value=avg_loss)
-        # new_summ.value.add(tag="test/std_loss", simple_value=std_loss)
-        new_summ.value.add(tag="test/avg_loss_%s" % FLAGS.parse_type, simple_value=avg_acc)
-        new_summ.value.add(tag="test/std_loss_%s" % FLAGS.parse_type, simple_value=std_acc)
+        new_summ.value.add(tag="test/avg_acc_%s" % FLAGS.parse_type, simple_value=avg_acc)
+        new_summ.value.add(tag="test/std_acc_%s" % FLAGS.parse_type, simple_value=std_acc)
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
         
