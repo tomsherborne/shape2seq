@@ -41,7 +41,6 @@ def main(_):
     assert FLAGS.log_dir, "Must specify experiment to log to!"
     assert FLAGS.exp_tag, "Must specify experiment tag subfolder to log_dir %s" % FLAGS.log_dir
     assert FLAGS.cnn_ckpt, "Must specify where to load CNN checkpoint from!"
-    assert FLAGS.parse_type in ["shape", "color", "shape_color"], "Must specify a valid batch parser type"
 
     # Build saving folders
     save_root = FLAGS.log_dir + os.sep + FLAGS.exp_tag

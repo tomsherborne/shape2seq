@@ -41,7 +41,7 @@ class SimpleBatchParser(object):
         Initialise the batch parser based upon the desired return object
         """
         
-        assert batch_type in ['shape', 'color', 'shape_color', 'standard']
+        assert batch_type in ['shape', 'color', 'shape_color', 'standard'],  "Must specify a valid batch parser type"
         self.batch_type = batch_type    # Controls which kind of batch object is returned
         
         self.src_vocab = {v: i for i, v in enumerate(SIMPLE_SRC_VOCAB)}
