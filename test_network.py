@@ -61,7 +61,7 @@ def main(_):
     
     g = tf.Graph()
     with g.as_default():
-        parser = SimpleBatchParser(batch_type=FLAGS.parse_type)
+        parser = SimpleBatchParser(src_vocab=dataset.vocabularies['language'], batch_type=FLAGS.parse_type)
         vocab, rev_vocab = parser.get_vocab()
         params.vocab_size = len(parser.tgt_vocab)
         
@@ -159,3 +159,4 @@ def main(_):
 
 if __name__=="__main__":
     tf.app.run()
+

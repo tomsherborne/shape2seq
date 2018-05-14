@@ -3,29 +3,39 @@ SEQ2SEQ IMAGE CAPTIONING
 Borrows heavily from the im2txt model in tf.models
 Tom Sherborne 8/5/18
 """
-
+from collections import namedtuple
 import tensorflow as tf
-seq2seq = tf.contrib.seq2seq
 tfl = tf.contrib.lookup
 
+from src.parser_base import ParserBase
+from src.caption import Caption
+
+CaptionScore = namedtuple("CaptionScore", ["ref_shape", "ref_color",
+                                           "inf_shape", "inf_color",
+                                           "shape_correct", "color_correct",
+                                           "specific_correct", "underspecify_correct"])
 # SRC VOCAB FROM SHAPEWORLD API
 SIMPLE_SRC_VOCAB = ['', '.', 'a', 'blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'is', 'magenta',
             'pentagon', 'rectangle', 'red', 'semicircle', 'shape', 'square', 'there', 'triangle', 'yellow', '[UNKNOWN]']
 
-# Aux words to useful vocabulary
-AUX_VOCAB = ["", '[UNKNOWN]', "<S>", "</S>"]
+# Shape and colours
+SHAPES = ['circle', 'cross', 'ellipse', 'pentagon', 'rectangle', 'semicircle', 'square', 'triangle']   # Specific shapes
+SHAPES_AUX = ['shape']      # Abstract words for shapes
+COLORS = ['blue', 'cyan', 'gray', 'green', 'magenta', 'red', 'yellow']  # Color words
+STOPS = ['a', 'an', 'there', 'is', "."]      # Stop words
+AUX_VOCAB = ["", '[UNKNOWN]', "<S>", "</S>"]    # Aux words to useful vocabulary
 
-SHAPE_COLOR_VOCAB = AUX_VOCAB + ['blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'magenta', 'pentagon',
-                                 'rectangle', 'red', 'semicircle', 'square', 'triangle', 'yellow']
-SHAPE_VOCAB = AUX_VOCAB + ['circle', 'cross', 'ellipse', 'pentagon', 'rectangle', 'semicircle', 'square', 'triangle']
-COLOR_VOCAB = AUX_VOCAB + ['blue', 'cyan', 'gray', 'green', 'magenta', 'red', 'yellow']
-STANDARD_VOCAB = AUX_VOCAB + ['.', 'a', 'blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'is', 'magenta',
-                        'pentagon', 'rectangle', 'red', 'semicircle', 'shape', 'square', 'there', 'triangle', 'yellow']
+SHAPE_COLOR_VOCAB = AUX_VOCAB + SHAPES + COLORS
+SHAPE_VOCAB = AUX_VOCAB + SHAPES
+COLOR_VOCAB = AUX_VOCAB + COLORS
+STANDARD_VOCAB = AUX_VOCAB + SHAPES + COLORS + ['there', 'is', 'a']
 
-TGT_VOCAB_ = {"shape": SHAPE_VOCAB, "color": COLOR_VOCAB, "shape_color": SHAPE_COLOR_VOCAB, "standard": STANDARD_VOCAB}
+AGREEMENT_ONESHAPE_VOCAB = AUX_VOCAB + SHAPES + SHAPES_AUX + COLORS + STOPS
+
+SIMPLE_TGT_VOCAB_ = {"shape": SHAPE_VOCAB, "color": COLOR_VOCAB, "shape_color": SHAPE_COLOR_VOCAB, "standard": STANDARD_VOCAB}
 
 
-class SimpleBatchParser(object):
+class SimpleBatchParser(ParserBase):
     """
     Initialise a batch parsing function to return the correct sequences and vocabulary for training a specific model
     Modes are:
@@ -36,38 +46,22 @@ class SimpleBatchParser(object):
     
     The get_batch_parser() fn returns function to perform this functionality
     """
-    def __init__(self, batch_type, sos_token="<S>", eos_token="</S>", max_seq_len=12):
+    def __init__(self, src_vocab, batch_type, sos_token="<S>", eos_token="</S>", max_seq_len=5):
         """
         Initialise the batch parser based upon the desired return object
         """
+        tgt_vocab = {v: i for i, v in enumerate(SIMPLE_TGT_VOCAB_[batch_type])}
+        super().__init__(src_vocab=src_vocab,
+                         tgt_vocab=tgt_vocab,
+                         sos_token=sos_token,
+                         eos_token=eos_token,
+                         max_seq_len=max_seq_len)
         
         assert batch_type in ['shape', 'color', 'shape_color', 'standard'],  "Must specify a valid batch parser type"
         self.batch_type = batch_type    # Controls which kind of batch object is returned
-        
-        self.src_vocab = {v: i for i, v in enumerate(SIMPLE_SRC_VOCAB)}
-        self.tgt_vocab = {v: i for i, v in enumerate(TGT_VOCAB_[batch_type])}
-        self.rev_vocab = {v: i for i, v in self.tgt_vocab.items()}
-        self.vocab_transfer_dict = {self.src_vocab[k]: self.tgt_vocab[k]
-                                    for k in self.src_vocab.keys()
-                                    if k in self.tgt_vocab.keys()}
-        # Key mapping for original vocabulary
-        self.vocab_map = self.generate_map()
-        
-        self.sos_token_id = self.tgt_vocab[sos_token]
-        self.eos_token_id = self.tgt_vocab[eos_token]
-        self.token_filter = [self.sos_token_id, self.eos_token_id]
-        self.max_seq_len = max_seq_len
-        
-    def generate_map(self):
-        """Generate Tensorflow Hashmaps for index remapping"""
-        keys = tf.cast(list(self.vocab_transfer_dict.keys()), dtype=tf.int32)
-        values = tf.cast(list(self.vocab_transfer_dict.values()), dtype=tf.int32)
 
-        return tfl.HashTable(tfl.KeyValueTensorInitializer(keys, values), -1)
-        
-    def get_vocab(self):
-        """Return vocabulary and reverse vocabulary objects"""
-        return self.tgt_vocab, self.rev_vocab
+        # Elements to strip from string
+        self.token_filter = AUX_VOCAB
     
     def crop_color(self, row):
         return tf.concat([[self.sos_token_id],
@@ -94,22 +88,6 @@ class SimpleBatchParser(object):
                           [self.eos_token_id]],
                          axis=0)
 
-    def split_seqs(self, row):
-        # Cast row of vocab indices
-        row = tf.cast(row, dtype=tf.int32)
-        # Caption length
-        caption_length = tf.shape(row)[0]
-        # Input sequence length
-        input_length = tf.cast(tf.expand_dims(tf.subtract(caption_length, 1), 0), dtype=tf.int32)
-        # Input sequence
-        input_seq = tf.slice(row, begin=[0], size=input_length)
-        # Target sequence
-        target_seq = tf.slice(row, begin=[1], size=input_length)
-        # Mask for input
-        input_mask = tf.ones(input_length, dtype=tf.int32)
-        
-        return row, input_seq, target_seq, input_mask, input_length
-    
     def get_batch_parser(self):
         """
         Transform a ShapeWorld "simple" batch to a model appropriate format
@@ -138,3 +116,110 @@ class SimpleBatchParser(object):
             return batch
 
         return batch_parser
+
+
+class OneshapeBatchParser(ParserBase):
+    """
+    Initialise a batch parsing function to return the correct sequences and vocabulary for training a specific model.
+    This model differs from the SimpleBatchParser as there is 1 mode and the caption length is variable.
+    Modes are:
+        standard:  "there is a red square ." -> "<S> there is a red square . </S>"
+                   "a blue shape is a cross ." -> "<S> a blue shape is a cross . </S>"
+    
+    The get_batch_parser() fn returns function to perform this functionality
+    """
+
+    def __init__(self, src_vocab, sos_token="<S>", eos_token="</S>", padding_token="", max_seq_len=12):
+        """
+        Initialise the batch parser
+        """
+        
+        tgt_vocab = {v: i for i, v in enumerate(AGREEMENT_ONESHAPE_VOCAB)}
+
+        super().__init__(src_vocab=src_vocab,
+                         tgt_vocab=tgt_vocab,
+                         sos_token=sos_token,
+                         eos_token=eos_token,
+                         max_seq_len=max_seq_len)
+        
+        self.pad_token_id = self.tgt_vocab[padding_token]
+        self.token_filter = AUX_VOCAB + [".", "there", "is", "a", "an"]
+
+    def crop_standard(self, batch):
+        row = batch['caption']
+        caption_ = tf.concat([[self.sos_token_id],
+                              tf.map_fn(lambda elem: self.vocab_map.lookup(elem), row[:batch['caption_length']]),
+                              [self.eos_token_id],
+                              tf.map_fn(lambda elem: self.pad_token_id, row[batch['caption_length']:])],
+                             axis=0)
+        batch['caption'] = caption_
+        return batch
+
+    def get_batch_parser(self):
+        """
+        Transform a ShapeWorld "agreement-oneshape" batch to a model appropriate format
+        i.e. "there is a red square" to "red square" or "red", or "square" based upon the vocab
+        """
+
+        crop_fn = self.crop_standard
+        split_fn = self.split_seqs
+    
+        def batch_parser(batch):
+            # Map the fn to correct vocab
+            batch = tf.map_fn(crop_fn, batch)
+        
+            # Split sequences
+            batch['complete_seqs'], batch['input_seqs'], batch['target_seqs'], batch['input_mask'], batch['seqs_len'] = \
+                tf.map_fn(split_fn, batch['caption'], dtype=(tf.int32, tf.int32, tf.int32, tf.int32, tf.int32))
+            return batch
+    
+        return batch_parser
+
+    def caption2set(self, caption):
+        """
+        Transform a list of vocab indices to the set of attributes to compare for accuracy in inference
+        
+        :param caption: list like object of vocabulary indices
+        :return: an instance of Caption class
+        """
+        
+        return Caption(caption_idxs=caption, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
+    
+    def score_cap_against_world(self, world_model, caption_idxs):
+        """
+        Score a caption against the world model for the same image.
+        
+        Examples:
+            ref: blue square        | inf: "a shape is blue"                -> underspecify correct
+            ref: red cross          | inf: "there is a cross"               -> underspecify correct
+            ref: green cross        | inf: "a shape is green"               -> underspecify correct
+            ref: green rectangle    | inf: "a green shape is a rectangle"   -> specific correct
+            ref: blue circle        | inf: "there is a blue circle"         -> specific correct
+            ref: yellow square      | inf: "a blue square is a shape"       -> shape correct only
+            ref: yellow square      | inf: "there is a yellow shape"        -> color correct only
+            ref: green circle       | inf: "there is a red square"          -> incorrect
+            ref: grey semicircle    | inf: "a shape is blue"                -> incorrect
+
+        Return a CaptionScore tuple:
+            "ref_shape":              reference shape
+            "ref_color":              reference color
+            "inf_shape":              inference shape
+            "inf_color":              inference color
+            "shape_correct":          shape is exactly correct
+            "color_correct":          color is exactly correct
+            "specific_correct":       shape and color are both specified
+            "underspecify_correct":   one of shape or color is potentially correct
+        """
+        
+        ref_color = world_model[0]['entities'][0]['color']['name']
+        ref_shape = world_model[0]['entities'][0]['shape']['name']
+        inf_cap = Caption(caption_idxs=caption_idxs, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
+        
+        return CaptionScore(ref_shape=ref_shape,
+                            ref_color=ref_color,
+                            inf_shape=inf_cap.color,
+                            inf_color=inf_cap.shape,
+                            shape_correct=None,
+                            color_correct=None,
+                            specific_correct=None,
+                            underspecify_correct=None)

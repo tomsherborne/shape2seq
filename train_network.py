@@ -78,7 +78,7 @@ def main(_):
     # MODEL SETUP ------------------------------------------------------------
     g = tf.Graph()
     with g.as_default():
-        parser = SimpleBatchParser(batch_type=FLAGS.parse_type)
+        parser = SimpleBatchParser(src_vocab=dataset.vocabularies['language'], batch_type=FLAGS.parse_type)
         params.vocab_size = len(parser.tgt_vocab)
         
         batch = tf_util.batch_records(dataset, mode="train", batch_size=params.batch_size)

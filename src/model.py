@@ -268,6 +268,7 @@ class CaptioningModel(object):
         for var in tf.trainable_variables():
             tf.summary.histogram("parameters/" + var.op.name, var)
             
+            
     def __build_cnn_initializer(self):
         """Restore the CNN collection from a checkpoint prior to training the decoder"""
         if self.is_training():
