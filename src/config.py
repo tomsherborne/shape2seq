@@ -2,8 +2,8 @@
 Configuration files for data importing, models and training/evaluation
 
 Based on the im2txt implementation on GitHub from the Tensorflow Authors
-
 """
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function

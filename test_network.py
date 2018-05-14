@@ -5,14 +5,13 @@ Tom Sherborne 8/5/18
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import os, time, sys
+import os, time
 
 import numpy as np
 import tensorflow as tf
 seq2seq = tf.contrib.seq2seq
 
 from shapeworld import Dataset, tf_util
-
 from src.model import CaptioningModel
 from src.batch_parser import SimpleBatchParser
 from src.config import Config
@@ -32,18 +31,21 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 def main(_):
     # FILESYSTEM SETUP ------------------------------------------------------------
-    
     assert FLAGS.data_dir, "Must specify data location!"
     assert FLAGS.log_dir, "Must specify experiment to log to!"
     assert FLAGS.exp_tag, "Must specify experiment tag subfolder to log_dir %s" % FLAGS.log_dir
 
-    # Build saving folders
+    # Folder setup for saving summaries and loading checkpoints
     save_root = FLAGS.log_dir + os.sep + FLAGS.exp_tag
     test_path = save_root + os.sep + "test"
+    train_path = FLAGS.log_dir + os.sep + FLAGS.exp_tag + os.sep + "train"
+    
+    model_ckpt = tf.train.latest_checkpoint(train_path)     # Get checkpoint to load
+    tf.logging.info("Loading checkpoint %s", model_ckpt)
+    assert model_ckpt, "Checkpoints could not be loaded, check that train_path %s exists" % train_path
 
-    # Sanity check
+    # Sanity check graph reset
     tf.reset_default_graph()
-
     tf.logging.info("Clean graph reset...")
 
     try:
@@ -64,12 +66,10 @@ def main(_):
         params.vocab_size = len(parser.tgt_vocab)
         
         batch = tf_util.batch_records(dataset, mode=FLAGS.data_partition, batch_size=params.batch_size)
-        
         model = CaptioningModel(config=params, batch_parser=parser)
         model.build_model(batch)
         
         restore_model = tf.train.Saver()
-
         tf.logging.info("Network built...")
         
     # TESTING SETUP ------------------------------------------------------------
@@ -78,27 +78,20 @@ def main(_):
         num_imgs = params.instances_per_shard * params.num_shards
     else:
         num_imgs = FLAGS.num_imgs
-    
     tf.logging.info("Running test for %d images", num_imgs)
 
     test_writer = tf.summary.FileWriter(logdir=test_path, graph=g)
-
-    #  Find model checkpoint
-    train_path = FLAGS.log_dir + os.sep + FLAGS.exp_tag + os.sep + "train"
-    model_ckpt = tf.train.latest_checkpoint(train_path)
-
-    assert model_ckpt, "Checkpoints could not be loaded, check that train_path %s exists" % train_path
-
-    tf.logging.info("Loading checkpoint %s", model_ckpt)
-
+    
     with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
+        # Launch data loading queues
         coordinator = tf.train.Coordinator()
         queue_threads = tf.train.start_queue_runners(sess=sess, coord=coordinator)
 
+        # Model restoration
         restore_model.restore(sess, model_ckpt)
         tf.logging.info("Model restored!")
 
-        # Initialise everything
+        # Trained model does not need initialisation. Init the vocab conversation tables
         sess.run([tf.tables_initializer()])
 
         #  Freeze graph
@@ -109,15 +102,16 @@ def main(_):
         tf.logging.info("Successfully loaded %s at global step = %d.",
                         os.path.basename(model_ckpt), global_step)
 
-        start_train_time = time.time()
+        start_test_time = time.time()
 
-        correct_accumulator = []
-        misses = 0
+        corrects = []
+        incorrects = []     # For correctly formed, but wrong captions
+        misses = []         # For incorrectly formed captions
         
         for b_idx in range(num_imgs):
             reference_caps, inf_decoder_outputs = sess.run(fetches=[model.reference_captions,
-                                                                           model.inf_decoder_output],
-                                                           feed_dict={model.phase : 0})
+                                                                    model.inf_decoder_output],
+                                                           feed_dict={model.phase: 0})
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
@@ -125,20 +119,23 @@ def main(_):
                 print("%d REF -> %s | INF -> %s" %
                       (b_idx, " ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
                 
-                ref_cap = [tok for tok in ref_cap if int(tok) not in parser.token_filter]
+                # Strip <S>, </S> and any irrelevant tokens and convert to list for order insensitivity
+                ref_cap = set([tok for tok in ref_cap if int(tok) not in parser.token_filter])
+                inf_cap = set([tok for tok in inf_cap if int(tok) not in parser.token_filter])
                 
-                inf_cap = [tok for tok in inf_cap if int(tok) not in parser.token_filter]
-                
-                correct_cap = np.all(inf_cap == ref_cap)
-                correct_accumulator.append(int(correct_cap))
+                if np.all(inf_cap == ref_cap):
+                    corrects.append(1)
+                else:
+                    incorrects.append((ref_cap, inf_cap))
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
-                misses+=1
+                misses.append(1)
                 
-        avg_acc = np.mean(correct_accumulator).squeeze()
-        std_acc = np.std(correct_accumulator).squeeze()
+        # Overall scores for checkpoint
+        avg_acc = np.mean(corrects).squeeze()
+        std_acc = np.std(corrects).squeeze()
         
-        print("Accuracy: %s -> %.5f ± %.5f | Misses: %d " % (FLAGS.parse_type, avg_acc, std_acc, misses))
+        print("Accuracy: %s -> %.5f ± %.5f | Misses: %d " % (FLAGS.parse_type, avg_acc, std_acc, len(misses)))
         
         new_summ = tf.Summary()
         new_summ.value.add(tag="test/avg_acc_%s_%s" % (FLAGS.parse_type, FLAGS.data_partition),
@@ -149,13 +146,16 @@ def main(_):
         
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
+
+        print("### Incorrect ### ")
+        print("-> REF -> %s | INF -> %s" %
+              (" ".join(rev_vocab[r[0]] for r in incorrects), " ".join(rev_vocab[r[1]] for r in incorrects)))
         
         coordinator.request_stop()
         coordinator.join(threads=queue_threads)
-
-        end_time = time.time()-start_train_time
-        tf.logging.info('Training complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
-
+    
+        end_time = time.time()-start_test_time
+        tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
 
 if __name__=="__main__":
     tf.app.run()

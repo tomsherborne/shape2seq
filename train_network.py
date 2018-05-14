@@ -5,7 +5,7 @@ Tom Sherborne 8/5/18
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import os, time, sys
+import os, time
 
 import numpy as np
 import tensorflow as tf
@@ -30,7 +30,7 @@ tf.flags.DEFINE_string("parse_type", "", "shape, color or shape_color for input 
 tf.flags.DEFINE_string("glove_dir", "", "Directory of GloVe embeddings to load")
 tf.flags.DEFINE_integer("glove_dim", 50, "Dimensionality of GloVe embeddings")
 tf.flags.DEFINE_integer("batch_size", 128, "Training batch size")
-tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
+tf.flags.DEFINE_string("exp_tag", "", "Sub-folder labelling under log_dir for this experiment")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -56,14 +56,12 @@ def main(_):
         tf.logging.info("Creating training directory: %s", train_path)
         tf.logging.info("Creating eval directory: %s", eval_path)
         tf.logging.info("Creating eval directory: %s", test_path)
-
     else:
         tf.logging.info("Using training directory: %s", train_path)
         tf.logging.info("Using eval directory: %s", eval_path)
 
     # Sanity check
     tf.reset_default_graph()
-
     tf.logging.info("Clean graph reset...")
 
     try:
@@ -78,7 +76,6 @@ def main(_):
     params.batch_size = FLAGS.batch_size
     
     # MODEL SETUP ------------------------------------------------------------
-    
     g = tf.Graph()
     with g.as_default():
         parser = SimpleBatchParser(batch_type=FLAGS.parse_type)
@@ -97,7 +94,6 @@ def main(_):
         else:
             tf.logging.info("Building model without GloVe initialisation...")
             model.build_model(batch)
-    
         tf.logging.info("Network built...")
         
         # TRAINING OPERATION SETUP ------------------------------------------------------------
@@ -116,7 +112,6 @@ def main(_):
     train_writer = tf.summary.FileWriter(logdir=train_path, graph=g)
     
     tf.logging.info('###' * 20)
-
     tf.logging.info("Begin shape2seq network training for %d steps" % params.num_total_steps)
     
     with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
@@ -135,7 +130,8 @@ def main(_):
         model.init_fn(sess)
         
         start_train_time = time.time()
-
+    
+        # Loss accumulator and logging interval generator at [25%, 50%, 75%, 100%] * epoch
         logging_loss = []
         logging_points = np.linspace(0, params.num_steps_per_epoch, 4, endpoint=False, dtype=np.int32)
         logging_points = np.fliplr([params.num_steps_per_epoch - logging_points])[0]
@@ -164,7 +160,6 @@ def main(_):
                 # Run without summaries
                 else:
                     _, loss_, = sess.run(fetches=[train_op, model.batch_loss])
-                    
                     logging_loss.append(loss_)
 
             logging_saver.save(sess=sess,
@@ -176,7 +171,6 @@ def main(_):
 
         end_time = time.time()-start_train_time
         tf.logging.info('Training complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
-
 
 if __name__=="__main__":
     tf.app.run()
