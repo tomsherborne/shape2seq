@@ -25,7 +25,7 @@ tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
 tf.flags.DEFINE_string("data_partition", "validation", "Which part of the dataset to test using")
 tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
 tf.flags.DEFINE_integer("num_imgs", 1000, "How many images to test with")
-
+tf.flags.DEFINE_boolean("greedy", False, "Greedy decoding [TRUE] or softmax sampling [FALSE]")
 tf.logging.set_verbosity(tf.logging.INFO)
 
 def main(_):
@@ -57,6 +57,11 @@ def main(_):
     # Get parsing and parameter feats
     params = Config(mode="test", sw_specification=dataset.specification())
     
+    # Greedy decoding
+    if FLAGS.greedy:
+        params.inference_greedy = True
+        params.inference_sample = False
+        
     # MODEL SETUP ------------------------------------------------------------
     
     g = tf.Graph()
