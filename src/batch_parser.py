@@ -234,7 +234,7 @@ class OneshapeBatchParser(ParserBase):
             shape_underspecify = False
             if ref_shape in inf_cap.shape:  # Actual shape is correct and specified
                 shape_correct = True
-            elif "shape" in inf_cap.shape:  # Actual shape is omitted (underspecified) but semantically correct
+            elif len(inf_cap.shape)==1 and ("shape" in inf_cap.shape):  # Actual shape is omitted (underspecified) but semantically correct
                 shape_correct = True
                 shape_underspecify = True
             else:                           # Shape is incorrect
