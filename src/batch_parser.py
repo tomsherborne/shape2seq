@@ -10,8 +10,8 @@ tfl = tf.contrib.lookup
 from src.parser_base import ParserBase
 from src.caption import Caption
 
-CaptionScore = namedtuple("CaptionScore", ["ref_shape", "ref_color",
-                                           "inf_shape", "inf_color",
+CaptionScore = namedtuple("CaptionScore", ["ref_cap","ref_shape", "ref_color",
+                                           "inf_cap","inf_shape", "inf_color",
                                            "shape_correct", "color_correct",
                                            "specific_correct", "underspecify_correct"])
 # SRC VOCAB FROM SHAPEWORLD API
@@ -185,7 +185,7 @@ class OneshapeBatchParser(ParserBase):
         
         return Caption(caption_idxs=caption, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
     
-    def score_cap_against_world(self, world_model, caption_idxs):
+    def score_cap_against_world(self, world_model, ref_caption_idxs, inf_caption_idxs):
         """
         Score a caption against the world model for the same image.
         
@@ -211,12 +211,16 @@ class OneshapeBatchParser(ParserBase):
             "underspecify_correct":   one of shape or color is potentially correct
         """
         
-        ref_color = world_model[0]['entities'][0]['color']['name']
-        ref_shape = world_model[0]['entities'][0]['shape']['name']
-        inf_cap = Caption(caption_idxs=caption_idxs, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
+        ref_color = world_model['entities'][0]['color']['name']
+        ref_shape = world_model['entities'][0]['shape']['name']
         
-        return CaptionScore(ref_shape=ref_shape,
+        ref_cap = Caption(caption_idxs=ref_caption_idxs, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
+        inf_cap = Caption(caption_idxs=inf_caption_idxs, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
+        
+        return CaptionScore(ref_cap=ref_cap,
+                            ref_shape=ref_shape,
                             ref_color=ref_color,
+                            inf_cap=inf_cap,
                             inf_shape=inf_cap.color,
                             inf_color=inf_cap.shape,
                             shape_correct=None,

@@ -13,17 +13,16 @@ seq2seq = tf.contrib.seq2seq
 
 from shapeworld import Dataset, tf_util
 from src.model import CaptioningModel
-from src.batch_parser import SimpleBatchParser
+from src.batch_parser import OneshapeBatchParser
 from src.config import Config
 
 FLAGS = tf.app.flags.FLAGS
 
 tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
-tf.flags.DEFINE_string("log_dir", "./models/exp7", "Directory location for logging")
+tf.flags.DEFINE_string("log_dir", "./models/exp8", "Directory location for logging")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
 tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
 tf.flags.DEFINE_string("data_partition", "validation", "Which part of the dataset to test using")
-tf.flags.DEFINE_string("parse_type", "", "shape, color or shape_color for input data formatting")
 tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
 tf.flags.DEFINE_integer("num_imgs", 1000, "How many images to test with")
 
@@ -51,6 +50,7 @@ def main(_):
     try:
         dataset = Dataset.create(dtype=FLAGS.dtype, name=FLAGS.name, config=FLAGS.data_dir)
         dataset.pixel_noise_stddev = 0.1
+        dataset.random_sampling = False
     except Exception:
         raise ValueError("config=%s did not point to a valid Shapeworld dataset" % FLAGS.data_dir)
 
@@ -61,12 +61,10 @@ def main(_):
     
     g = tf.Graph()
     with g.as_default():
-        parser = SimpleBatchParser(src_vocab=dataset.vocabularies['language'], batch_type=FLAGS.parse_type)
+        parser = OneshapeBatchParser(src_vocab=dataset.vocabularies['language'])
         vocab, rev_vocab = parser.get_vocab()
         params.vocab_size = len(parser.tgt_vocab)
         
-        # batch = tf_util.batch_records(dataset, mode=FLAGS.data_partition, batch_size=params.batch_size)
-
         caption_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size, 9))
         caption_len_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size,))
         world_pl = tf.placeholder(dtype=tf.float32, shape=(params.batch_size, 64, 64, 3))
@@ -89,10 +87,6 @@ def main(_):
     test_writer = tf.summary.FileWriter(logdir=test_path, graph=g)
     
     with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-        # Launch data loading queues
-        coordinator = tf.train.Coordinator()
-        queue_threads = tf.train.start_queue_runners(sess=sess, coord=coordinator)
-
         # Model restoration
         restore_model.restore(sess, model_ckpt)
         tf.logging.info("Model restored!")
@@ -109,58 +103,42 @@ def main(_):
                         os.path.basename(model_ckpt), global_step)
 
         start_test_time = time.time()
-
-        corrects = []
-        incorrects = []     # For correctly formed, but wrong captions
-        misses = []         # For incorrectly formed captions
-        
+        misses = []
+        cap_scores = []
         for b_idx in range(num_imgs):
+            idx_batch = dataset.generate(n=params.batch_size, mode=FLAGS.data_partition, include_model=True)
             
             reference_caps, inf_decoder_outputs = sess.run(fetches=[model.reference_captions,
                                                                     model.inf_decoder_output],
-                                                           feed_dict={model.phase: 0})
+                                                           feed_dict={model.phase: 0,
+                                                                      world_pl: idx_batch['world'],
+                                                                      caption_pl: idx_batch['caption'],
+                                                                      caption_len_pl: idx_batch['caption_length']
+                                                            })
+            
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
             if inf_cap.ndim > 0 and inf_cap.ndim > 0:
+                # cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0]), ref_cap, inf_cap)
                 print("%d REF -> %s | INF -> %s" %
                       (b_idx, " ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
-                
-                # Strip <S>, </S> and any irrelevant tokens and convert to list for order insensitivity
-                ref_cap = set([tok for tok in ref_cap if int(tok) not in parser.token_filter])
-                inf_cap = set([tok for tok in inf_cap if int(tok) not in parser.token_filter])
-                
-                if np.all(inf_cap == ref_cap):
-                    corrects.append(1)
-                else:
-                    incorrects.append((ref_cap, inf_cap))
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
                 misses.append(1)
-                
-        # Overall scores for checkpoint
-        avg_acc = np.mean(corrects).squeeze()
-        std_acc = np.std(corrects).squeeze()
         
-        print("Accuracy: %s -> %.5f ± %.5f | Misses: %d " % (FLAGS.parse_type, avg_acc, std_acc, len(misses)))
-        
-        new_summ = tf.Summary()
-        new_summ.value.add(tag="test/avg_acc_%s_%s" % (FLAGS.parse_type, FLAGS.data_partition),
-                           simple_value=avg_acc)
-        
-        new_summ.value.add(tag="test/std_acc_%s_%s" % (FLAGS.parse_type, FLAGS.data_partition),
-                           simple_value=std_acc)
-        
-        test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
-        test_writer.flush()
-
-        print("### Incorrect ### ")
-        print("-> REF -> %s | INF -> %s" %
-              (" ".join(rev_vocab[r[0]] for r in incorrects), " ".join(rev_vocab[r[1]] for r in incorrects)))
-        
-        coordinator.request_stop()
-        coordinator.join(threads=queue_threads)
-    
+        # new_summ = tf.Summary()
+        # new_summ.value.add(tag="test/avg_acc_%s" % (FLAGS.data_partition),
+        #                    simple_value=avg_acc)
+        #
+        # new_summ.value.add(tag="test/std_acc_%s" % (FLAGS.data_partition),
+        #                    simple_value=std_acc)
+        # test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
+        # test_writer.flush()
+        # print("### Incorrect ### ")
+        # print("-> REF -> %s | INF -> %s" %
+        #       (" ".join(rev_vocab[r[0]] for r in incorrects), " ".join(rev_vocab[r[1]] for r in incorrects)))
+            
         end_time = time.time()-start_test_time
         tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
 
