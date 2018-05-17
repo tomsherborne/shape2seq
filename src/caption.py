@@ -23,7 +23,7 @@ class Caption(object):
         self.shape_word_idx = self.vocab['shape']
         
         #   Get shape from caption, ['shape'] is allowed
-        self.shape = [rev_vocab[s] for s in caption_idxs if rev_vocab[s] in SHAPES or rev_vocab[s] == 'shape']
+        self.shape = [rev_vocab[s] for s in caption_idxs if rev_vocab[s] in SHAPES or rev_vocab[s] == "shape"]
         
         #   Get color from caption
         self.color = [rev_vocab[c] for c in caption_idxs if rev_vocab[c] in COLORS]

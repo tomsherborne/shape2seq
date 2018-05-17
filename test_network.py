@@ -125,25 +125,39 @@ def main(_):
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
             if inf_cap.ndim > 0 and inf_cap.ndim > 0:
-                # cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0]), ref_cap, inf_cap)
-                print("%d REF -> %s | INF -> %s" %
-                      (b_idx, " ".join(rev_vocab[r] for r in ref_cap), " ".join(rev_vocab[r] for r in inf_cap)))
+                cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0], ref_cap, inf_cap))
+                print("%d REF -> %s | INF -> %s | Spec-Correct: %d |  Underspec-Correct %d | Inc %d" %
+                      (b_idx,
+                       " ".join(rev_vocab[r] for r in ref_cap),
+                       " ".join(rev_vocab[r] for r in inf_cap),
+                       cap_scores[-1].specific_correct,
+                       cap_scores[-1].underspecify_correct,
+                       cap_scores[-1].incorrect)
+                      )
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
                 misses.append(1)
         
-        # new_summ = tf.Summary()
-        # new_summ.value.add(tag="test/avg_acc_%s" % (FLAGS.data_partition),
-        #                    simple_value=avg_acc)
-        #
-        # new_summ.value.add(tag="test/std_acc_%s" % (FLAGS.data_partition),
-        #                    simple_value=std_acc)
-        # test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
-        # test_writer.flush()
-        # print("### Incorrect ### ")
-        # print("-> REF -> %s | INF -> %s" %
-        #       (" ".join(rev_vocab[r[0]] for r in incorrects), " ".join(rev_vocab[r[1]] for r in incorrects)))
-            
+        num_specific_correct = sum([s.specific_correct for s in cap_scores]) / len(cap_scores)
+        num_underspecify_correct = sum([s.underspecify_correct for s in cap_scores]) / len(cap_scores)
+        num_incorrect = sum([s.incorrect for s in cap_scores]) / len(cap_scores)
+        
+        print("SPECIFIC CORRECT -> %.3f\nUNDERSPECIFY CORRECT -> %.3f\nINCORRECT -> %.3f" % (num_specific_correct,
+                                                                                             num_underspecify_correct,
+                                                                                             num_incorrect))
+        new_summ = tf.Summary()
+        new_summ.value.add(tag="test/specific_correct_%s" % (FLAGS.data_partition),
+                           simple_value=num_specific_correct)
+
+        new_summ.value.add(tag="test/underspecify_correct_%s" % (FLAGS.data_partition),
+                           simple_value=num_underspecify_correct)
+        
+        new_summ.value.add(tag="test/incorrect_%s" % (FLAGS.data_partition),
+                           simple_value=num_incorrect)
+        
+        test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
+        test_writer.flush()
+        
         end_time = time.time()-start_test_time
         tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
 

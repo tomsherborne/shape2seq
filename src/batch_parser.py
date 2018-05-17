@@ -12,8 +12,9 @@ from src.caption import Caption
 
 CaptionScore = namedtuple("CaptionScore", ["ref_cap","ref_shape", "ref_color",
                                            "inf_cap","inf_shape", "inf_color",
-                                           "shape_correct", "color_correct",
-                                           "specific_correct", "underspecify_correct"])
+                                           "shape_correct", "color_correct","specific_correct",
+                                           "underspecify_color","underspecify_shape","underspecify_correct",
+                                           "incorrect"])
 # SRC VOCAB FROM SHAPEWORLD API
 SIMPLE_SRC_VOCAB = ['', '.', 'a', 'blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'is', 'magenta',
             'pentagon', 'rectangle', 'red', 'semicircle', 'shape', 'square', 'there', 'triangle', 'yellow', '[UNKNOWN]']
@@ -217,13 +218,55 @@ class OneshapeBatchParser(ParserBase):
         ref_cap = Caption(caption_idxs=ref_caption_idxs, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
         inf_cap = Caption(caption_idxs=inf_caption_idxs, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
         
+        #   Check if inference colors is ref_color OR NONE
+        
+        if inf_cap.color is not None:   # A color is identified
+            color_underspecify = False
+            if ref_color in inf_cap.color:  # The correct color is identified
+                color_correct = True
+            else:                           # There is a color and it is incorrect
+                color_correct = False
+        else:                               # Color is absent
+            color_correct = False
+            color_underspecify = True
+            
+        if inf_cap.shape is not None:  # A shape is identified
+            shape_underspecify = False
+            if ref_shape in inf_cap.shape:  # Actual shape is correct and specified
+                shape_correct = True
+            elif "shape" in inf_cap.shape:  # Actual shape is omitted (underspecified) but semantically correct
+                shape_correct = True
+                shape_underspecify = True
+            else:                           # Shape is incorrect
+                shape_correct = False
+        else:                               # There is no "shape" or specific shape mentioned
+            shape_correct = False
+            shape_underspecify = True
+
+        # Truth conditions for correctness
+        if (shape_correct and color_correct):
+            specific_correct = 1
+            underspecify_correct = 0
+            incorrect = 0
+        elif ((shape_correct and color_underspecify) or (color_correct and shape_underspecify)):
+            specific_correct = 0
+            underspecify_correct = 1
+            incorrect = 0
+        else:
+            specific_correct = 0
+            underspecify_correct = 0
+            incorrect = 1
+        
         return CaptionScore(ref_cap=ref_cap,
                             ref_shape=ref_shape,
                             ref_color=ref_color,
                             inf_cap=inf_cap,
                             inf_shape=inf_cap.color,
                             inf_color=inf_cap.shape,
-                            shape_correct=None,
-                            color_correct=None,
-                            specific_correct=None,
-                            underspecify_correct=None)
+                            shape_correct=shape_correct,
+                            color_correct=color_correct,
+                            specific_correct=specific_correct,
+                            underspecify_color=color_underspecify,
+                            underspecify_shape=shape_underspecify,
+                            underspecify_correct=underspecify_correct,
+                            incorrect=incorrect)
