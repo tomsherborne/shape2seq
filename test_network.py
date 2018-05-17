@@ -21,7 +21,7 @@ FLAGS = tf.app.flags.FLAGS
 tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
 tf.flags.DEFINE_string("log_dir", "./models/exp7", "Directory location for logging")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
-tf.flags.DEFINE_string("name", "simple", "Shapeworld Data Name")
+tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
 tf.flags.DEFINE_string("data_partition", "validation", "Which part of the dataset to test using")
 tf.flags.DEFINE_string("parse_type", "", "shape, color or shape_color for input data formatting")
 tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
@@ -65,7 +65,13 @@ def main(_):
         vocab, rev_vocab = parser.get_vocab()
         params.vocab_size = len(parser.tgt_vocab)
         
-        batch = tf_util.batch_records(dataset, mode=FLAGS.data_partition, batch_size=params.batch_size)
+        # batch = tf_util.batch_records(dataset, mode=FLAGS.data_partition, batch_size=params.batch_size)
+
+        caption_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size, 9))
+        caption_len_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size,))
+        world_pl = tf.placeholder(dtype=tf.float32, shape=(params.batch_size, 64, 64, 3))
+        batch = {"caption": caption_pl, "caption_length": caption_len_pl, "world": world_pl}
+        
         model = CaptioningModel(config=params, batch_parser=parser)
         model.build_model(batch)
         
@@ -109,6 +115,7 @@ def main(_):
         misses = []         # For incorrectly formed captions
         
         for b_idx in range(num_imgs):
+            
             reference_caps, inf_decoder_outputs = sess.run(fetches=[model.reference_captions,
                                                                     model.inf_decoder_output],
                                                            feed_dict={model.phase: 0})

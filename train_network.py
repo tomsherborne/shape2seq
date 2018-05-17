@@ -16,16 +16,16 @@ from shapeworld import Dataset, tf_util
 
 from src.model import CaptioningModel
 from src.glove_loader import GloveLoader
-from src.batch_parser import SimpleBatchParser
+from src.batch_parser import OneshapeBatchParser
 from src.config import Config
 
 FLAGS = tf.app.flags.FLAGS
 
 tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
-tf.flags.DEFINE_string("log_dir", "./models/exp7", "Directory location for logging")
+tf.flags.DEFINE_string("log_dir", "./models/exp8", "Directory location for logging")
 tf.flags.DEFINE_string("cnn_ckpt", "", "Directory to load CNN checkpoint")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
-tf.flags.DEFINE_string("name", "simple", "Shapeworld Data Name")
+tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
 tf.flags.DEFINE_string("parse_type", "", "shape, color or shape_color for input data formatting")
 tf.flags.DEFINE_string("glove_dir", "", "Directory of GloVe embeddings to load")
 tf.flags.DEFINE_integer("glove_dim", 50, "Dimensionality of GloVe embeddings")
@@ -78,7 +78,7 @@ def main(_):
     # MODEL SETUP ------------------------------------------------------------
     g = tf.Graph()
     with g.as_default():
-        parser = SimpleBatchParser(src_vocab=dataset.vocabularies['language'], batch_type=FLAGS.parse_type)
+        parser = OneshapeBatchParser(src_vocab=dataset.vocabularies['language'])
         params.vocab_size = len(parser.tgt_vocab)
         
         batch = tf_util.batch_records(dataset, mode="train", batch_size=params.batch_size)
