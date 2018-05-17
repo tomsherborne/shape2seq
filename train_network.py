@@ -26,7 +26,6 @@ tf.flags.DEFINE_string("log_dir", "./models/exp8", "Directory location for loggi
 tf.flags.DEFINE_string("cnn_ckpt", "", "Directory to load CNN checkpoint")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
 tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
-tf.flags.DEFINE_string("parse_type", "", "shape, color or shape_color for input data formatting")
 tf.flags.DEFINE_string("glove_dir", "", "Directory of GloVe embeddings to load")
 tf.flags.DEFINE_integer("glove_dim", 50, "Dimensionality of GloVe embeddings")
 tf.flags.DEFINE_integer("batch_size", 128, "Training batch size")
@@ -36,7 +35,6 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 def main(_):
     # FILESYSTEM SETUP ------------------------------------------------------------
-    
     assert FLAGS.data_dir, "Must specify data location!"
     assert FLAGS.log_dir, "Must specify experiment to log to!"
     assert FLAGS.exp_tag, "Must specify experiment tag subfolder to log_dir %s" % FLAGS.log_dir
