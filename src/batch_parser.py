@@ -219,8 +219,7 @@ class OneshapeBatchParser(ParserBase):
         inf_cap = Caption(caption_idxs=inf_caption_idxs, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
         
         #   Check if inference colors is ref_color OR NONE
-        
-        if inf_cap.color is not None:   # A color is identified
+        if inf_cap.color:   # A color is identified
             color_underspecify = False
             if ref_color in inf_cap.color:  # The correct color is identified
                 color_correct = True
@@ -230,7 +229,7 @@ class OneshapeBatchParser(ParserBase):
             color_correct = False
             color_underspecify = True
             
-        if inf_cap.shape is not None:  # A shape is identified
+        if inf_cap.shape:  # A shape is identified
             shape_underspecify = False
             if ref_shape in inf_cap.shape:  # Actual shape is correct and specified
                 shape_correct = True
