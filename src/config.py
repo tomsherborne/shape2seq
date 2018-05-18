@@ -66,4 +66,4 @@ class Config(object):
         self.inference_sample = True
         self.inference_greedy = False
         self.softmax_temperature = 1.5
-        self.max_decoding_seq_len = 12
+        self.max_decoding_seq_len = 16
