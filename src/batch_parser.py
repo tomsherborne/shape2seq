@@ -202,6 +202,7 @@ class OneshapeBatchParser(ParserBase):
         """
 
         CaptionScore = namedtuple("CaptionScore", ["world_model", "inf_cap",            # world model dict, output cap
+                                                   "ref_shape", "ref_color",
                                                    "shape_correct", "color_correct",    # specific shape and colors true
                                                    "specify_true",                      # shapes and colors correct
                                                    "no_color_specify_shape_true",       # "there is a square"
@@ -212,25 +213,27 @@ class OneshapeBatchParser(ParserBase):
         ref_color = world_model['entities'][0]['color']['name']
         ref_shape = world_model['entities'][0]['shape']['name']
         
+        print("REF | SHAPE: %s | COLOUR %s" % (ref_shape, ref_color))
+        
         inf_shapes = set([self.rev_vocab[w] for w in inf_caption_idxs if self.rev_vocab[w] in SHAPES])
         inf_colors = set([self.rev_vocab[w] for w in inf_caption_idxs if self.rev_vocab[w] in COLORS])
         inf_hyper = set([self.rev_vocab[w] for w in inf_caption_idxs if self.rev_vocab[w] in SHAPES_HYPERNYMS])
 
         if ref_color in inf_colors and ref_shape in inf_shapes:
             print("SPECIFIC CORRECT")
-            return CaptionScore(world_model, inf_caption_idxs, 1, 1, 1, 0, 0, 0, 0)
+            return CaptionScore(world_model, inf_caption_idxs, ref_shape, ref_color, 1, 1, 1, 0, 0, 0, 0)
         elif ref_shape in inf_shapes and not inf_colors:
             print("NO COLOR SPECIFY SHAPE")
-            return CaptionScore(world_model, inf_caption_idxs, 1, 0, 0, 1, 0, 0, 0)
+            return CaptionScore(world_model, inf_caption_idxs, ref_shape, ref_color, 1, 0, 0, 1, 0, 0, 0)
         elif ref_color in inf_colors and inf_hyper and not inf_shapes:
             print("SPECIFY COLOR HYPERNYM SHAPE")
-            return CaptionScore(world_model, inf_caption_idxs, 0, 1, 0, 0, 1, 0, 0)
+            return CaptionScore(world_model, inf_caption_idxs, ref_shape, ref_color, 0, 1, 0, 0, 1, 0, 0)
         elif inf_hyper and not inf_colors and not inf_shapes:
             print("NO COLOR HYPERNYM SHAPE")
-            return CaptionScore(world_model, inf_caption_idxs, 0, 0, 0, 0, 0, 1, 0)
+            return CaptionScore(world_model, inf_caption_idxs, ref_shape, ref_color, 0, 0, 0, 0, 0, 1, 0)
         else:
             print("INCORRECT")
-            return CaptionScore(world_model, inf_caption_idxs, 0, 0, 0, 0, 0, 0, 1)
+            return CaptionScore(world_model, inf_caption_idxs, ref_shape, ref_color, 0, 0, 0, 0, 0, 0, 1)
 
 class SpatialBatchParser(ParserBase):
     """

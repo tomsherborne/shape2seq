@@ -131,6 +131,7 @@ def main(_):
                        " ".join(rev_vocab[r] for r in inf_cap))
                       )
                 cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0], inf_cap))
+                print()
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
                 misses.append(inf_cap)
@@ -176,7 +177,7 @@ def main(_):
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
         
-        test_outputs_fname = test_path + os.sep + "caps_%d_%d.csv" % (tf.train.global_step(sess, model.global_step),
+        test_outputs_fname = test_path + os.sep + "caps_%d_%s.csv" % (tf.train.global_step(sess, model.global_step),
                                                                    FLAGS.data_partition)
         
         with open(test_outputs_fname, 'w', newline='\n') as fh:
