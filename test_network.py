@@ -125,12 +125,12 @@ def main(_):
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
             if inf_cap.ndim > 0 and inf_cap.ndim > 0:
-                print("%d REF -> %s | INF -> %s" %
-                      (b_idx,
-                       " ".join(rev_vocab[r] for r in ref_cap),
-                       " ".join(rev_vocab[r] for r in inf_cap))
-                      )
+                print(b_idx)
                 cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0], inf_cap))
+                print("REF -> %s | INF -> %s" %
+                      (" ".join(rev_vocab[r] for r in ref_cap if r != 0),
+                       " ".join(rev_vocab[r] for r in inf_cap if r != 0))
+                      )
                 print()
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
