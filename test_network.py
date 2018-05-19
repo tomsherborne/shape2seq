@@ -125,36 +125,54 @@ def main(_):
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
             
             if inf_cap.ndim > 0 and inf_cap.ndim > 0:
-                cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0], ref_cap, inf_cap))
-                print("%d REF -> %s | INF -> %s | Spec-Correct: %d |  Underspec-Correct %d | Inc %d" %
+                print("%d REF -> %s | INF -> %s" %
                       (b_idx,
                        " ".join(rev_vocab[r] for r in ref_cap),
-                       " ".join(rev_vocab[r] for r in inf_cap),
-                       cap_scores[-1].specific_correct,
-                       cap_scores[-1].underspecify_correct,
-                       cap_scores[-1].incorrect)
+                       " ".join(rev_vocab[r] for r in inf_cap))
                       )
+                cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0], inf_cap))
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
-                misses.append(1)
-        
-        num_specific_correct = sum([s.specific_correct for s in cap_scores]) / len(cap_scores)
-        num_underspecify_correct = sum([s.underspecify_correct for s in cap_scores]) / len(cap_scores)
-        num_incorrect = sum([s.incorrect for s in cap_scores]) / len(cap_scores)
-        
-        print("SPECIFIC CORRECT -> %.3f\nUNDERSPECIFY CORRECT -> %.3f\nINCORRECT -> %.3f" % (num_specific_correct,
-                                                                                             num_underspecify_correct,
-                                                                                             num_incorrect))
-        new_summ = tf.Summary()
-        new_summ.value.add(tag="test/specific_correct_%s" % (FLAGS.data_partition),
-                           simple_value=num_specific_correct)
+                misses.append(inf_cap)
 
-        new_summ.value.add(tag="test/underspecify_correct_%s" % (FLAGS.data_partition),
-                           simple_value=num_underspecify_correct)
+        print("SHAPE CORRECT")
+        shape_correct = np.mean([w.shape_correct for w in cap_scores])
+        print(shape_correct)
+        print("COLOR CORRECT")
+        color_correct = np.mean([w.color_correct for w in cap_scores])
+        print(color_correct)
+        print("SPECIFIC CORRECT")
+        specify_true = np.mean(sum([w.specify_true for w in cap_scores]))
+        print(specify_true)
+        print("NO COLOR SPECIFY SHAPE")
+        no_color_specify_shape_true = np.mean([w.no_color_specify_shape_true for w in cap_scores])
+        print(no_color_specify_shape_true)
+        print("SPECIFY COLOR HYPERNYM SHAPE")
+        specify_color_hypernym_shape_true = np.mean([w.specify_color_hypernym_shape_true for w in cap_scores])
+        print(specify_color_hypernym_shape_true)
+        print("NO COLOR HYPERNYM SHAPE")
+        no_color_hypernym_shape_true = np.mean([w.no_color_hypernym_shape_true for w in cap_scores])
+        print(no_color_hypernym_shape_true)
+        print("INCORRECT")
+        false = np.mean([w.false for w in cap_scores])
+        print(false)
         
-        new_summ.value.add(tag="test/incorrect_%s" % (FLAGS.data_partition),
-                           simple_value=num_incorrect)
-        
+        new_summ = tf.Summary()
+        new_summ.value.add(tag="test/shape_correct_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+                           simple_value=shape_correct)
+        new_summ.value.add(tag="test/color_correct_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+                           simple_value=color_correct)
+        new_summ.value.add(tag="test/specify_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+                           simple_value=specify_true)
+        new_summ.value.add(tag="test/no_color_specify_shape_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+                           simple_value=no_color_specify_shape_true)
+        new_summ.value.add(tag="test/specify_color_hypernym_shape_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+                           simple_value=specify_color_hypernym_shape_true)
+        new_summ.value.add(tag="test/no_color_hypernym_shape_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+                           simple_value=no_color_hypernym_shape_true)
+        new_summ.value.add(tag="test/false_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+                           simple_value=false)
+    
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
         
