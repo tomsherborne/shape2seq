@@ -5,7 +5,7 @@ Tom Sherborne 8/5/18
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import os, time
+import os, time, csv
 
 import numpy as np
 import tensorflow as tf
@@ -175,6 +175,14 @@ def main(_):
     
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
+        
+        test_outputs_fname = test_path + os.sep + "caps_%d_%d.csv" % (tf.train.global_step(sess, model.global_step),
+                                                                   FLAGS.data_partition)
+        
+        with open(test_outputs_fname, 'w', newline='\n') as fh:
+            writer = csv.writer(fh, delimiter=',')
+            writer.writerow(cap_scores[0]._fields)
+            writer.writerows(list(c) for c in cap_scores)
         
         end_time = time.time()-start_test_time
         tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
