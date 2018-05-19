@@ -11,18 +11,13 @@ tfl = tf.contrib.lookup
 from src.parser_base import ParserBase
 from src.caption import Caption
 
-CaptionScore = namedtuple("CaptionScore", ["ref_cap","ref_shape", "ref_color",
-                                           "inf_cap","inf_shape", "inf_color",
-                                           "shape_correct", "color_correct","specific_correct",
-                                           "underspecify_color","underspecify_shape","underspecify_correct",
-                                           "incorrect"])
 # SRC VOCAB FROM SHAPEWORLD API
 SIMPLE_SRC_VOCAB = ['', '.', 'a', 'blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'is', 'magenta',
             'pentagon', 'rectangle', 'red', 'semicircle', 'shape', 'square', 'there', 'triangle', 'yellow', '[UNKNOWN]']
 
 # Shape and colours
 SHAPES = ['circle', 'cross', 'ellipse', 'pentagon', 'rectangle', 'semicircle', 'square', 'triangle']   # Specific shapes
-SHAPES_AUX = ['shape']      # Abstract words for shapes
+SHAPES_HYPERNYMS = ['shape']      # Abstract words for shapes
 COLORS = ['blue', 'cyan', 'gray', 'green', 'magenta', 'red', 'yellow']  # Color words
 STOPS = ['a', 'an', 'there', 'is', "."]      # Stop words
 AUX_VOCAB = ["", '[UNKNOWN]', "<S>", "</S>"]    # Aux words to useful vocabulary
@@ -33,7 +28,7 @@ SHAPE_VOCAB = AUX_VOCAB + SHAPES
 COLOR_VOCAB = AUX_VOCAB + COLORS
 STANDARD_VOCAB = AUX_VOCAB + SHAPES + COLORS + ['there', 'is', 'a']
 
-AGREEMENT_ONESHAPE_VOCAB = AUX_VOCAB + SHAPES + SHAPES_AUX + COLORS + STOPS
+AGREEMENT_ONESHAPE_VOCAB = AUX_VOCAB + SHAPES + SHAPES_HYPERNYMS + COLORS + STOPS
 AGREEMENT_SPATIAL_VOCAB = AGREEMENT_ONESHAPE_VOCAB + SPATIAL_AUX_VOCAB
 
 SIMPLE_TGT_VOCAB_ = {"shape": SHAPE_VOCAB, "color": COLOR_VOCAB, "shape_color": SHAPE_COLOR_VOCAB, "standard": STANDARD_VOCAB}
@@ -188,7 +183,7 @@ class OneshapeBatchParser(ParserBase):
         
         return Caption(caption_idxs=caption, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
     
-    def score_cap_against_world(self, world_model, ref_caption_idxs, inf_caption_idxs):
+    def score_cap_against_world(self, world_model, inf_caption_idxs):
         """
         Score a caption against the world model for the same image.
         
@@ -203,24 +198,34 @@ class OneshapeBatchParser(ParserBase):
             ref: green circle       | inf: "there is a red square"          -> incorrect
             ref: grey semicircle    | inf: "a shape is blue"                -> incorrect
 
-        Return a CaptionScore tuple:
-            "ref_shape":              reference shape
-            "ref_color":              reference color
-            "inf_shape":              inference shape
-            "inf_color":              inference color
-            "shape_correct":          shape is exactly correct
-            "color_correct":          color is exactly correct
-            "specific_correct":       shape and color are both specified
-            "underspecify_correct":   one of shape or color is potentially correct
+        Return a CaptionScore tuple
         """
-        # todo: fix this function
+
+        CaptionScore = namedtuple("CaptionScore", ["world_model", "inf_cap",            # world model dict, output cap
+                                                   "shape_correct", "color_correct",    # specific shape and colors true
+                                                   "specify_true",                      # shapes and colors correct
+                                                   "no_color_specify_shape_true",       # "there is a square"
+                                                   "specify_color_hypernym_shape_true", # "there is a red shape"
+                                                   "no_color_hypernym_shape_true",      # "there is a shape"
+                                                   "false"])                            # incorrect statements
+
         ref_color = world_model['entities'][0]['color']['name']
         ref_shape = world_model['entities'][0]['shape']['name']
         
-        color_in_inf = sum([True for idx in inf_caption_idxs if self.rev_vocab[idx]==ref_color])
-        shape_in_inf = sum([True for idx in inf_caption_idxs if self.rev_vocab[idx]==ref_shape])
-    
-        return
+        inf_shapes = set([self.rev_vocab[w] for w in inf_caption_idxs if self.rev_vocab[w] in SHAPES])
+        inf_colors = set([self.rev_vocab[w] for w in inf_caption_idxs if self.rev_vocab[w] in COLORS])
+        inf_hyper = set([self.rev_vocab[w] for w in inf_caption_idxs if self.rev_vocab[w] in SHAPES_HYPERNYMS])
+
+        if ref_color in inf_colors and ref_shape in inf_shapes:
+            return CaptionScore(world_model, inf_caption_idxs, 1, 1, 1, 0, 0, 0, 0)
+        elif ref_shape in inf_shapes and not inf_colors:
+            return CaptionScore(world_model, inf_caption_idxs, 1, 0, 0, 1, 0, 0, 0)
+        elif ref_color in inf_colors and inf_hyper and not inf_shapes:
+            return CaptionScore(world_model, inf_caption_idxs, 0, 1, 0, 0, 1, 0, 0)
+        elif inf_hyper and not inf_colors and not inf_shapes:
+            return CaptionScore(world_model, inf_caption_idxs, 0, 0, 0, 0, 0, 1, 0)
+        else:
+            return CaptionScore(world_model, inf_caption_idxs, 0, 0, 0, 0, 0, 0, 1)
 
 class SpatialBatchParser(ParserBase):
     """
