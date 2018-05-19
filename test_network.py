@@ -128,8 +128,8 @@ def main(_):
                 print(b_idx)
                 cap_scores.append(parser.score_cap_against_world(idx_batch['world_model'][0], inf_cap))
                 print("REF -> %s | INF -> %s" %
-                      (" ".join(rev_vocab[r] for r in ref_cap if r != 0),
-                       " ".join(rev_vocab[r] for r in inf_cap if r != 0))
+                      (" ".join(rev_vocab[r] for r in ref_cap if r != parser.pad_token_id),
+                       cap_scores[-1].inf_cap)
                       )
                 print()
             else:
