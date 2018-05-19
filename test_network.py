@@ -142,7 +142,7 @@ def main(_):
         color_correct = np.mean([w.color_correct for w in cap_scores])
         print(color_correct)
         print("SPECIFIC CORRECT")
-        specify_true = np.mean(sum([w.specify_true for w in cap_scores]))
+        specify_true = np.mean([w.specify_true for w in cap_scores])
         print(specify_true)
         print("NO COLOR SPECIFY SHAPE")
         no_color_specify_shape_true = np.mean([w.no_color_specify_shape_true for w in cap_scores])
