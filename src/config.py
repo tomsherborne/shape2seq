@@ -63,7 +63,7 @@ class Config(object):
         self.save_every_n_steps = 100
         
         #   Testing Config  -----------------------------
-        self.inference_sample = True
-        self.inference_greedy = False
+        self.decode_type = 'greedy'
         self.softmax_temperature = 1.5
+        self.beam_width = 3
         self.max_decoding_seq_len = 20

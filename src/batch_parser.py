@@ -9,9 +9,8 @@ import tensorflow as tf
 tfl = tf.contrib.lookup
 
 from src.parser_base import ParserBase
-from src.caption import Caption
 
-# SRC VOCAB FROM SHAPEWORLD API
+# Src Vocab from Agreement-Simple dataset
 SIMPLE_SRC_VOCAB = ['', '.', 'a', 'blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'is', 'magenta',
             'pentagon', 'rectangle', 'red', 'semicircle', 'shape', 'square', 'there', 'triangle', 'yellow', '[UNKNOWN]']
 
@@ -117,32 +116,35 @@ class SimpleBatchParser(ParserBase):
         return batch_parser
 
 
-# todo: this can be the standard full caption parser now
-class OneshapeBatchParser(ParserBase):
+class FullSequenceBatchParser(ParserBase):
     """
     Initialise a batch parsing function to return the correct sequences and vocabulary for training a specific model.
     This model differs from the SimpleBatchParser as there is 1 mode and the caption length is variable.
     Modes are:
         standard:  "there is a red square ." -> "<S> there is a red square . </S>"
                    "a blue shape is a cross ." -> "<S> a blue shape is a cross . </S>"
-    
+
     The get_batch_parser() fn returns function to perform this functionality
     """
 
-    def __init__(self, src_vocab, sos_token="<S>", eos_token="</S>", padding_token="", max_seq_len=12):
+    def __init__(self, src_vocab, sos_token="<S>", eos_token="</S>", padding_token="", max_seq_len=16):
         """
         Initialise the batch parser
         """
-        
-        tgt_vocab = {v: i for i, v in enumerate(AGREEMENT_ONESHAPE_VOCAB)}
-
+    
+        max_vocab_idx = len(src_vocab)
+        tgt_vocab = copy.deepcopy(src_vocab)
+        tgt_vocab[sos_token] = max_vocab_idx
+        tgt_vocab[eos_token] = max_vocab_idx + 1
+    
         super().__init__(src_vocab=src_vocab,
                          tgt_vocab=tgt_vocab,
                          sos_token=sos_token,
                          eos_token=eos_token,
                          max_seq_len=max_seq_len)
-        
+    
         self.pad_token_id = self.tgt_vocab[padding_token]
+    
 
     def crop_standard(self, batch):
         row = batch['caption']
@@ -173,18 +175,8 @@ class OneshapeBatchParser(ParserBase):
             return batch
     
         return batch_parser
-
-    def caption2set(self, caption):
-        """
-        Transform a list of vocab indices to the set of attributes to compare for accuracy in inference
-        
-        :param caption: list like object of vocabulary indices
-        :return: an instance of Caption class
-        """
-        
-        return Caption(caption_idxs=caption, vocab=self.tgt_vocab, rev_vocab=self.rev_vocab)
     
-    def score_cap_against_world(self, world_model, inf_caption_idxs):
+    def score_cap_against_world_oneshape(self, world_model, inf_caption_idxs):
         """
         Score a caption against the world model for the same image.
         
@@ -238,62 +230,6 @@ class OneshapeBatchParser(ParserBase):
             print("INCORRECT")
             return CaptionScore(world_model, inf_cap_str, ref_shape, ref_color, 0, 0, 0, 0, 0, 0, 1)
 
-class SpatialBatchParser(ParserBase):
-    """
-    Initialise a batch parsing function to return the correct sequences and vocabulary for training a specific model.
-    This model differs from the SimpleBatchParser as there is 1 mode and the caption length is variable.
-
-    The get_batch_parser() fn returns function to perform this functionality
-    """
-    
-    def __init__(self, src_vocab, sos_token="<S>", eos_token="</S>", padding_token="", max_seq_len=16):
-        """
-        Initialise the batch parser
-        """
-        
-        max_vocab_idx = len(src_vocab)
-        tgt_vocab = copy.deepcopy(src_vocab)
-        tgt_vocab[sos_token] = max_vocab_idx
-        tgt_vocab[eos_token] = max_vocab_idx + 1
-        
-        super().__init__(src_vocab=src_vocab,
-                         tgt_vocab=tgt_vocab,
-                         sos_token=sos_token,
-                         eos_token=eos_token,
-                         max_seq_len=max_seq_len)
-        
-        self.pad_token_id = self.tgt_vocab[padding_token]
-    
-    def crop_standard(self, batch):
-        row = batch['caption']
-        caption_ = tf.concat([[self.sos_token_id],
-                              tf.map_fn(lambda elem: self.vocab_map.lookup(elem), row[:batch['caption_length']]),
-                              [self.eos_token_id],
-                              tf.map_fn(lambda elem: self.pad_token_id, row[batch['caption_length']:])],
-                             axis=0)
-        batch['caption'] = caption_
-        return batch
-    
-    def get_batch_parser(self):
-        """
-        Transform a ShapeWorld "agreement-oneshape" batch to a model appropriate format
-        i.e. "there is a red square" to "red square" or "red", or "square" based upon the vocab
-        """
-        
-        crop_fn = self.crop_standard
-        split_fn = self.split_seqs
-        
-        def batch_parser(batch):
-            # Map the fn to correct vocab
-            batch = tf.map_fn(crop_fn, batch)
-            
-            # Split sequences
-            batch['complete_seqs'], batch['input_seqs'], batch['target_seqs'], batch['input_mask'], batch['seqs_len'] = \
-                tf.map_fn(split_fn, batch['caption'], dtype=(tf.int32, tf.int32, tf.int32, tf.int32, tf.int32))
-            return batch
-        
-        return batch_parser
-
-    def score_cap_against_word(self, world_model, ref_caption_idxs, inf_caption_idxs):
+    def score_cap_against_word_spatial(self, world_model, ref_caption_idxs, inf_caption_idxs):
         print("score_cap_against_world needs implementing")
         return

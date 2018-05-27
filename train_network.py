@@ -16,7 +16,7 @@ from shapeworld import Dataset, tf_util
 
 from src.model import CaptioningModel
 from src.glove_loader import GloveLoader
-from src.batch_parser import OneshapeBatchParser
+from src.batch_parser import FullSequenceBatchParser
 from src.config import Config
 
 FLAGS = tf.app.flags.FLAGS
@@ -76,7 +76,7 @@ def main(_):
     # MODEL SETUP ------------------------------------------------------------
     g = tf.Graph()
     with g.as_default():
-        parser = OneshapeBatchParser(src_vocab=dataset.vocabularies['language'])
+        parser = FullSequenceBatchParser(src_vocab=dataset.vocabularies['language'])
         params.vocab_size = len(parser.tgt_vocab)
         
         batch = tf_util.batch_records(dataset, mode="train", batch_size=params.batch_size)
