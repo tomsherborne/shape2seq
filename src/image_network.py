@@ -55,7 +55,7 @@ class ShapeWorldEncoder(object):
                                        padding="SAME", name=layer_name + "_maxpool")
             return cell3
         
-        # Number of channels for filter input and output
+        # Number of channels for filter input and output. Change the numbers in this tuple for new layer sizes
         nfilt = (3, 32, 64, 128)
         
         with tf.variable_scope('cnn', initializer=tf.contrib.layers.xavier_initializer()) as scope:

@@ -46,6 +46,7 @@ class CaptioningModel(object):
         
         # Output feats
         self.batch_loss = None                      # A float32 scalar Tensor
+        self.batch_perplexity = None
         self.training_decoder_output = None         # Instance of BasicDecoderOutput
         self.inf_decoder_output = None              # Instance of BasicDecoderOutput or BeamSearchDecoderOutput
         
@@ -173,23 +174,28 @@ class CaptioningModel(object):
 
             #   Initial input tokens are concatenated [<S>;<img_embedding] size: [batch, 1, [<S>;<img_embedding]]
             #   This is accomplished by augmenting the embedding matrix with the image embedding.
-            #   This limits the batch size to be 1 as the img_embed concat op has to renew for each new image
+            #   This limits the batch size to be 1 as the img_embed concat op has to renew for each image
             inf_joint_embeddings = tf.concat((self.embedding_map,
                                               tf.tile(self.img_embedding, [self.vocab_size, 1])),
                                              axis=-1)
             
-            if self.config.inference_greedy:
-                # Greedy embedding helper for the output
-                inf_helper = seq2seq.GreedyEmbeddingHelper(embedding=inf_joint_embeddings,
-                                                           start_tokens=tf.fill([self.config.batch_size], self.target_start_tok),
-                                                           end_token=self.target_end_tok)
-                
-            else:
+            if self.config.inference_sample:
                 # Softmax sampling helper with temperature set in config
                 inf_helper = seq2seq.SampleEmbeddingHelper(embedding=inf_joint_embeddings,
                                                            start_tokens=tf.fill([self.config.batch_size], self.target_start_tok),
                                                            end_token=self.target_end_tok,
                                                            softmax_temperature=self.config.softmax_temperature)
+            # elif self.config.inference_beam:
+            #     beam_width = self.config.beam_width
+            #     # todo add beam search decoder
+
+            else:
+                # Default is argmax greedy decoding
+                # Greedy embedding helper for the output
+                inf_helper = seq2seq.GreedyEmbeddingHelper(embedding=inf_joint_embeddings,
+                                                           start_tokens=tf.fill([self.config.batch_size],
+                                                                                self.target_start_tok),
+                                                           end_token=self.target_end_tok)
             # Decoder fn
             inference_decoder = seq2seq.BasicDecoder(cell=self.lstm,
                                                      helper=inf_helper,
@@ -202,6 +208,19 @@ class CaptioningModel(object):
 
         # Output is a BasicDecoderOutput object
         self.inf_decoder_output = lstm_outputs
+
+        # Get decoder rnn_output from BasicDecoderOutput size:[batch_size,max_seq_len, vocab_size]
+        lstm_outputs = lstm_outputs.rnn_output
+
+        # Weighted softmax cross entropy sequence loss
+        loss_ = seq2seq.sequence_loss(logits=lstm_outputs,
+                                      targets=self.target_seqs,
+                                      weights=self.input_mask,
+                                      average_across_timesteps=True,
+                                      average_across_batch=True)
+        
+        b_perplexity = tf.exp(loss_)
+        self.batch_perplexity = b_perplexity
 
     def __build_training_graph(self):
         """
@@ -245,7 +264,7 @@ class CaptioningModel(object):
                                                     output_layer=self.projection_layer)
 
             # Run training decoder without a maximum iteration
-            lstm_outputs, _, output_seq_lens = seq2seq.dynamic_decode(training_decoder)
+            lstm_outputs, _, _ = seq2seq.dynamic_decode(training_decoder)
 
         # Output is a BasicDecoderOutput object
         self.training_decoder_output = lstm_outputs
@@ -254,7 +273,7 @@ class CaptioningModel(object):
         lstm_outputs = lstm_outputs.rnn_output
         
         # Weighted softmax cross entropy sequence loss
-        loss_ = seq2seq.sequence_loss(logits=lstm_outputs,
+        loss_ = seq2seq.sequence_loss(logits= lstm_outputs,
                                       targets=self.target_seqs,
                                       weights=self.input_mask,
                                       average_across_timesteps=True,

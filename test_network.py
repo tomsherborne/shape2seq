@@ -36,7 +36,10 @@ def main(_):
 
     # Folder setup for saving summaries and loading checkpoints
     save_root = FLAGS.log_dir + os.sep + FLAGS.exp_tag
-    test_path = save_root + os.sep + "test"
+    test_path = save_root + os.sep + "test_2"
+    if not tf.gfile.IsDirectory(test_path):
+        tf.gfile.MakeDirs(test_path)
+        
     train_path = FLAGS.log_dir + os.sep + FLAGS.exp_tag + os.sep + "train"
     
     model_ckpt = tf.train.latest_checkpoint(train_path)     # Get checkpoint to load
@@ -110,19 +113,23 @@ def main(_):
         start_test_time = time.time()
         misses = []
         cap_scores = []
+        perplexities = []
+        
         for b_idx in range(num_imgs):
             idx_batch = dataset.generate(n=params.batch_size, mode=FLAGS.data_partition, include_model=True)
             
-            reference_caps, inf_decoder_outputs = sess.run(fetches=[model.reference_captions,
-                                                                    model.inf_decoder_output],
-                                                           feed_dict={model.phase: 0,
-                                                                      world_pl: idx_batch['world'],
-                                                                      caption_pl: idx_batch['caption'],
-                                                                      caption_len_pl: idx_batch['caption_length']
-                                                            })
+            reference_caps, inf_decoder_outputs, batch_perplexity = sess.run(fetches=[model.reference_captions,
+                                                                                      model.inf_decoder_output,
+                                                                                      model.batch_perplexity],
+                                                                             feed_dict={model.phase: 0,
+                                                                                        world_pl: idx_batch['world'],
+                                                                                        caption_pl: idx_batch['caption'],
+                                                                                        caption_len_pl: idx_batch['caption_length']
+                                                                              })
             
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
+            perplexities.append(batch_perplexity)
             
             if inf_cap.ndim > 0 and inf_cap.ndim > 0:
                 print(b_idx)
@@ -158,22 +165,31 @@ def main(_):
         false = np.mean([w.false for w in cap_scores])
         print(false)
         
+        avg_perplexity = np.mean(perplexities).squeeze()
+        std_perplexity = np.std(perplexities).squeeze()
+        print("------------")
+        print("PERPLEXITY -> %.5f +- %.5f" % (avg_perplexity, std_perplexity))
+        
         new_summ = tf.Summary()
-        new_summ.value.add(tag="test/shape_correct_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+        new_summ.value.add(tag="%s/shape_correct_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=shape_correct)
-        new_summ.value.add(tag="test/color_correct_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+        new_summ.value.add(tag="%s/color_correct_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=color_correct)
-        new_summ.value.add(tag="test/specify_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+        new_summ.value.add(tag="%s/specify_true_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=specify_true)
-        new_summ.value.add(tag="test/no_color_specify_shape_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+        new_summ.value.add(tag="%s/no_color_specify_shape_true_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=no_color_specify_shape_true)
-        new_summ.value.add(tag="test/specify_color_hypernym_shape_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+        new_summ.value.add(tag="%s/specify_color_hypernym_shape_true_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=specify_color_hypernym_shape_true)
-        new_summ.value.add(tag="test/no_color_hypernym_shape_true_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+        new_summ.value.add(tag="%s/no_color_hypernym_shape_true_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=no_color_hypernym_shape_true)
-        new_summ.value.add(tag="test/false_%s_%s" % (FLAGS.name, FLAGS.data_partition),
+        new_summ.value.add(tag="%s/false_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=false)
-    
+        new_summ.value.add(tag="%s/perplexity_avg_%s" % (FLAGS.data_partition, FLAGS.name),
+                           simple_value=avg_perplexity)
+        new_summ.value.add(tag="%s/perplexity_mean_%s" % (FLAGS.data_partition, FLAGS.name),
+                           simple_value=std_perplexity)
+        
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
         

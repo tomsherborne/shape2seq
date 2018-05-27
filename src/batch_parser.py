@@ -117,6 +117,7 @@ class SimpleBatchParser(ParserBase):
         return batch_parser
 
 
+# todo: this can be the standard full caption parser now
 class OneshapeBatchParser(ParserBase):
     """
     Initialise a batch parsing function to return the correct sequences and vocabulary for training a specific model.
@@ -292,3 +293,7 @@ class SpatialBatchParser(ParserBase):
             return batch
         
         return batch_parser
+
+    def score_cap_against_word(self, world_model, ref_caption_idxs, inf_caption_idxs):
+        print("score_cap_against_world needs implementing")
+        return
