@@ -116,7 +116,7 @@ def main(_):
     tf.logging.info('###' * 20)
     tf.logging.info("Begin shape2seq network training for %d steps" % params.num_total_steps)
     
-    with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
+    with tf.Session(graph=g) as sess:
         
         tf.logging.info("### Trainable Variables")
         for var in tf.trainable_variables():

@@ -129,7 +129,7 @@ class CaptioningModel(object):
         
     def __build_seq_embeddings(self, embedding_init):
         """Build the 1-hot to embedding encoding with optional initialization"""
-        with tf.variable_scope("seq_embeddings"), tf.device("/gpu:0"):
+        with tf.variable_scope("seq_embeddings"):
             embed_shape = (self.vocab_size, self.config.embedding_size)
             
             # Initialise with some pretrained embeddings
@@ -148,7 +148,6 @@ class CaptioningModel(object):
                                                 initializer=self.embedding_initializer,
                                                 trainable=self.config.train_embeddings)
             
-            # Lookup on GPU
             seq_embeddings = tf.nn.embedding_lookup(embedding_map, self.input_seqs)
         
         self.embedding_map = embedding_map      # for recurrent decoding
