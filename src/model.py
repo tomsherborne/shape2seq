@@ -179,7 +179,7 @@ class CaptioningModel(object):
                                               tf.tile(self.img_embedding, [self.vocab_size, 1])),
                                              axis=-1)
             
-            if self.config.inference_sample:
+            if self.config.decode_type=='sample':
                 # Softmax sampling helper with temperature set in config
                 inf_helper = seq2seq.SampleEmbeddingHelper(embedding=inf_joint_embeddings,
                                                            start_tokens=tf.fill([self.config.batch_size], self.target_start_tok),

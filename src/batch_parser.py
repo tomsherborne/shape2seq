@@ -19,17 +19,24 @@ SHAPES = ['circle', 'cross', 'ellipse', 'pentagon', 'rectangle', 'semicircle', '
 SHAPES_HYPERNYMS = ['shape']      # Abstract words for shapes
 COLORS = ['blue', 'cyan', 'gray', 'green', 'magenta', 'red', 'yellow']  # Color words
 STOPS = ['a', 'an', 'there', 'is', "."]      # Stop words
-AUX_VOCAB = ["", '[UNKNOWN]', "<S>", "</S>"]    # Aux words to useful vocabulary
+AUX_VOCAB = ['[UNKNOWN]', "<S>", "</S>"]    # Aux words to useful vocabulary
 SPATIAL_AUX_VOCAB = ["above", "below", "left", "right", "of", "to"]
 
-SHAPE_COLOR_VOCAB = AUX_VOCAB + SHAPES + COLORS
-SHAPE_VOCAB = AUX_VOCAB + SHAPES
-COLOR_VOCAB = AUX_VOCAB + COLORS
-STANDARD_VOCAB = AUX_VOCAB + SHAPES + COLORS + ['there', 'is', 'a']
 
-AGREEMENT_ONESHAPE_VOCAB = AUX_VOCAB + SHAPES + SHAPES_HYPERNYMS + COLORS + STOPS
-AGREEMENT_SPATIAL_VOCAB = AGREEMENT_ONESHAPE_VOCAB + SPATIAL_AUX_VOCAB
+AGREEMENT_ONESHAPE_VOCAB = AUX_VOCAB + SHAPES + SHAPES_HYPERNYMS + COLORS + STOPS + [""]
+AGREEMENT_SPATIAL_VOCAB = AGREEMENT_ONESHAPE_VOCAB + SPATIAL_AUX_VOCAB+ [""]
 
+
+AUX_VOCAB = ["", '[UNKNOWN]', "<S>", "</S>"]
+
+SHAPE_COLOR_VOCAB = AUX_VOCAB + ['blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'magenta', 'pentagon',
+                                 'rectangle', 'red', 'semicircle', 'square', 'triangle', 'yellow']
+SHAPE_VOCAB = AUX_VOCAB + ['circle', 'cross', 'ellipse', 'pentagon', 'rectangle', 'semicircle', 'square', 'triangle']
+COLOR_VOCAB = AUX_VOCAB + ['blue', 'cyan', 'gray', 'green', 'magenta', 'red', 'yellow']
+STANDARD_VOCAB = AUX_VOCAB + ['.', 'a', 'blue', 'circle', 'cross', 'cyan', 'ellipse', 'gray', 'green', 'is', 'magenta',
+                        'pentagon', 'rectangle', 'red', 'semicircle', 'shape', 'square', 'there', 'triangle', 'yellow']
+
+TGT_VOCAB_ = {"shape": SHAPE_VOCAB, "color": COLOR_VOCAB, "shape_color": SHAPE_COLOR_VOCAB, "standard": STANDARD_VOCAB}
 SIMPLE_TGT_VOCAB_ = {"shape": SHAPE_VOCAB, "color": COLOR_VOCAB, "shape_color": SHAPE_COLOR_VOCAB, "standard": STANDARD_VOCAB}
 
 
