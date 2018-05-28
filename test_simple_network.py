@@ -167,13 +167,13 @@ def main(_):
         new_summ.value.add(tag="%s/perplexity_mean_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=std_perplexity)
         
-        # test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
-        # test_writer.flush()
+        test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
+        test_writer.flush()
         
         coordinator.request_stop()
         coordinator.join(threads=queue_threads)
 
-        print("### Incorrect ### ")
+        # print("### Incorrect ### ")
         #print("-> REF -> %s | INF -> %s" %
         #      (" ".join(rev_vocab[r[0]] for r in incorrects), " ".join(rev_vocab[r[1]] for r in incorrects)))
 
