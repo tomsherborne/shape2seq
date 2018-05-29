@@ -11,7 +11,7 @@ import numpy as np
 import tensorflow as tf
 seq2seq = tf.contrib.seq2seq
 
-from shapeworld import Dataset, tf_util
+from shapeworld import Dataset
 from src.model import CaptioningModel
 from src.batch_parser import FullSequenceBatchParser
 from src.config import Config
@@ -19,7 +19,7 @@ from src.config import Config
 FLAGS = tf.app.flags.FLAGS
 
 tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
-tf.flags.DEFINE_string("log_dir", "./models/exp8", "Directory location for logging")
+tf.flags.DEFINE_string("log_dir", "./models/final/sequence", "Directory location for logging")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
 tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
 tf.flags.DEFINE_string("data_partition", "validation", "Which part of the dataset to test using")
@@ -169,30 +169,30 @@ def main(_):
         print("PERPLEXITY -> %.5f +- %.5f" % (avg_perplexity, std_perplexity))
         
         new_summ = tf.Summary()
-        new_summ.value.add(tag="%s/shape_correct_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/shape_correct_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=shape_correct)
-        new_summ.value.add(tag="%s/color_correct_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/color_correct_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=color_correct)
-        new_summ.value.add(tag="%s/specify_true_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/specify_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=specify_true)
-        new_summ.value.add(tag="%s/no_color_specify_shape_true_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/no_color_specify_shape_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=no_color_specify_shape_true)
-        new_summ.value.add(tag="%s/specify_color_hypernym_shape_true_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/specify_color_hypernym_shape_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=specify_color_hypernym_shape_true)
-        new_summ.value.add(tag="%s/no_color_hypernym_shape_true_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/no_color_hypernym_shape_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=no_color_hypernym_shape_true)
-        new_summ.value.add(tag="%s/false_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/false_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=false)
-        new_summ.value.add(tag="%s/perplexity_avg_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/perplexity_avg_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=avg_perplexity)
-        new_summ.value.add(tag="%s/perplexity_mean_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/perplexity_std_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=std_perplexity)
         
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()
         
-        test_outputs_fname = test_path + os.sep + "caps_%d_%s.csv" % (tf.train.global_step(sess, model.global_step),
-                                                                   FLAGS.data_partition)
+        test_outputs_fname = test_path + os.sep + "caps_%d_%s_%s.csv" % (tf.train.global_step(sess, model.global_step),
+                                                                   FLAGS.data_partition, FLAGS.decode_type)
         
         with open(test_outputs_fname, 'w', newline='\n') as fh:
             writer = csv.writer(fh, delimiter=',')

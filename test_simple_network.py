@@ -164,7 +164,7 @@ def main(_):
                            simple_value=std_acc)
         new_summ.value.add(tag="%s/perplexity_avg_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=avg_perplexity)
-        new_summ.value.add(tag="%s/perplexity_mean_%s" % (FLAGS.data_partition, FLAGS.name),
+        new_summ.value.add(tag="%s/perplexity_std_%s" % (FLAGS.data_partition, FLAGS.name),
                            simple_value=std_perplexity)
         
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
@@ -172,10 +172,6 @@ def main(_):
         
         coordinator.request_stop()
         coordinator.join(threads=queue_threads)
-
-        # print("### Incorrect ### ")
-        #print("-> REF -> %s | INF -> %s" %
-        #      (" ".join(rev_vocab[r[0]] for r in incorrects), " ".join(rev_vocab[r[1]] for r in incorrects)))
 
         end_time = time.time() - start_test_time
         tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time / 60,

@@ -22,7 +22,7 @@ from src.config import Config
 FLAGS = tf.app.flags.FLAGS
 
 tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
-tf.flags.DEFINE_string("log_dir", "./models/exp8", "Directory location for logging")
+tf.flags.DEFINE_string("log_dir", "./models/final/sequence", "Directory location for logging")
 tf.flags.DEFINE_string("cnn_ckpt", "", "Directory to load CNN checkpoint")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
 tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
