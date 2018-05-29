@@ -202,24 +202,17 @@ class CaptioningModel(object):
                                                      output_layer=self.projection_layer)
             
             # Run decoding w/o beam search
-            lstm_outputs, _, _ = seq2seq.dynamic_decode(inference_decoder,
+            lstm_outputs, _, lstm_lens = seq2seq.dynamic_decode(inference_decoder,
                                                         maximum_iterations=self.config.max_decoding_seq_len)
 
         # Output is a BasicDecoderOutput object
         self.inf_decoder_output = lstm_outputs
 
-        # Get decoder rnn_output from BasicDecoderOutput size:[batch_size,max_seq_len, vocab_size]
-        lstm_outputs = lstm_outputs.rnn_output
-
-        # Weighted softmax cross entropy sequence loss
-        loss_ = seq2seq.sequence_loss(logits=lstm_outputs,
-                                      targets=self.target_seqs,
-                                      weights=self.input_mask,
-                                      average_across_timesteps=True,
-                                      average_across_batch=True)
+        # Get the joint sequence softmax probability of the output sequence
+        joint_seq_prob = tf.reduce_prod(tf.reduce_max(tf.nn.softmax(lstm_outputs.rnn_output, axis=-1), axis=-1))
         
-        b_perplexity = tf.exp(loss_)
-        self.batch_perplexity = b_perplexity
+        # Calc perplexity from this as P(joint)**(-1/len(seq))
+        self.batch_perplexity = tf.pow(joint_seq_prob, -tf.div(1.0, tf.cast(lstm_lens, dtype=tf.float32)))
 
     def __build_training_graph(self):
         """
@@ -272,7 +265,7 @@ class CaptioningModel(object):
         lstm_outputs = lstm_outputs.rnn_output
         
         # Weighted softmax cross entropy sequence loss
-        loss_ = seq2seq.sequence_loss(logits= lstm_outputs,
+        loss_ = seq2seq.sequence_loss(logits=lstm_outputs,
                                       targets=self.target_seqs,
                                       weights=self.input_mask,
                                       average_across_timesteps=True,
