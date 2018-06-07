@@ -118,16 +118,21 @@ def main(_):
 
         sem_parser = parser.build_semparser()
 
-        for b_idx in range(num_imgs):
-            idx_batch = dataset.generate(n=params.batch_size, mode=FLAGS.data_partition, include_model=True)
-            world_model = idx_batch['world_model'][0]
+        idx_batch = dataset.generate(n=params.batch_size, mode=FLAGS.data_partition, include_model=True)
+        
+        # Dict of lists -> list of dicts
+        idx_batch = [{k: v[idx] for k, v in idx_batch.items()}
+                     for idx in range(0, params.batch_size)]
+        
+        for b_idx, batch in enumerate(idx_batch):
+            world_model = batch['world_model'][0]
             reference_caps, inf_decoder_outputs, batch_perplexity = sess.run(fetches=[model.reference_captions,
                                                                                       model.inf_decoder_output,
                                                                                       model.batch_perplexity],
                                                                              feed_dict={model.phase: 0,
-                                                                                        world_pl: idx_batch['world'],
-                                                                                        caption_pl: idx_batch['caption'],
-                                                                                        caption_len_pl: idx_batch['caption_length']
+                                                                                        world_pl: batch['world'],
+                                                                                        caption_pl: batch['caption'],
+                                                                                        caption_len_pl: batch['caption_length']
                                                                               })
             
             perplexities.append(batch_perplexity)
