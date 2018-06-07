@@ -27,6 +27,7 @@ tf.flags.DEFINE_string("data_partition", "validation", "Which part of the datase
 tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
 tf.flags.DEFINE_integer("num_imgs", 1000, "How many images to test with")
 tf.flags.DEFINE_string("decode_type", "greedy", "Greedy decoding [TRUE] or softmax sampling [FALSE]")
+tf.flags.DEFINE_integer('pholder_sz', 8, "size of placeholder values in feed_dict")
 tf.logging.set_verbosity(tf.logging.INFO)
 
 def main(_):
@@ -73,7 +74,7 @@ def main(_):
         vocab, rev_vocab = parser.get_vocab()
         params.vocab_size = len(parser.tgt_vocab)
         
-        caption_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size, 9))
+        caption_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size, FLAGS.pholder_sz))
         caption_len_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size,))
         world_pl = tf.placeholder(dtype=tf.float32, shape=(params.batch_size, 64, 64, 3))
         batch = {"caption": caption_pl, "caption_length": caption_len_pl, "world": world_pl}
