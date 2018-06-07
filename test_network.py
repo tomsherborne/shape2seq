@@ -18,10 +18,11 @@ from src.config import Config
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
+tf.flags.DEFINE_string("data_dir", "/home/trs46/data", "Location of ShapeWorld data")
 tf.flags.DEFINE_string("log_dir", "./models/final/sequence", "Directory location for logging")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
-tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
+tf.flags.DEFINE_string("name", "existential", "Shapeworld Data Name")
+tf.flags.DEFINE_string("variant", "", "Shapeworld dataset variant [required]")
 tf.flags.DEFINE_string("data_partition", "validation", "Which part of the dataset to test using")
 tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
 tf.flags.DEFINE_integer("num_imgs", 1000, "How many images to test with")
@@ -33,6 +34,7 @@ def main(_):
     assert FLAGS.data_dir, "Must specify data location!"
     assert FLAGS.log_dir, "Must specify experiment to log to!"
     assert FLAGS.exp_tag, "Must specify experiment tag subfolder to log_dir %s" % FLAGS.log_dir
+    assert FLAGS.variant, "Must specific shapeworld variant"
 
     # Folder setup for saving summaries and loading checkpoints
     save_root = FLAGS.log_dir + os.sep + FLAGS.exp_tag
@@ -51,11 +53,10 @@ def main(_):
     tf.logging.info("Clean graph reset...")
 
     try:
-        dataset = Dataset.create(dtype=FLAGS.dtype, name=FLAGS.name, config=FLAGS.data_dir)
-        dataset.pixel_noise_stddev = 0.1
-        dataset.random_sampling = False
+        dataset = Dataset.create(dtype=FLAGS.dtype, name=FLAGS.name, variant=FLAGS.variant,
+                                 config=FLAGS.data_dir, pixel_noise_stddev=0.1, random_sampling=False)
     except Exception:
-        raise ValueError("config=%s did not point to a valid Shapeworld dataset" % FLAGS.data_dir)
+        raise ValueError("variant=%s did not point to a valid Shapeworld dataset" % FLAGS.variant)
 
     # Get parsing and parameter feats
     params = Config(mode="test", sw_specification=dataset.specification())
@@ -112,10 +113,12 @@ def main(_):
         misses = []
         cap_scores = []
         perplexities = []
-        
+
+        sem_parser = parser.build_semparser()
+
         for b_idx in range(num_imgs):
             idx_batch = dataset.generate(n=params.batch_size, mode=FLAGS.data_partition, include_model=True)
-            
+            world_model = idx_batch['world_model'][0]
             reference_caps, inf_decoder_outputs, batch_perplexity = sess.run(fetches=[model.reference_captions,
                                                                                       model.inf_decoder_output,
                                                                                       model.batch_perplexity],
@@ -125,68 +128,60 @@ def main(_):
                                                                                         caption_len_pl: idx_batch['caption_length']
                                                                               })
             
+            perplexities.append(batch_perplexity)
             ref_cap = reference_caps.squeeze()
             inf_cap = inf_decoder_outputs.sample_id.squeeze()
-            perplexities.append(batch_perplexity)
-            
             if inf_cap.ndim > 0 and inf_cap.ndim > 0:
-                print(b_idx)
-                cap_scores.append(parser.score_cap_against_world_oneshape(idx_batch['world_model'][0], inf_cap))
-                print("REF -> %s | INF -> %s" %
-                      (" ".join(rev_vocab[r] for r in ref_cap if r != parser.pad_token_id),
-                       cap_scores[-1].inf_cap)
-                      )
-                print()
+                
+                ref_cap = " ".join(rev_vocab[r] for r in ref_cap if r!=parser.pad_token_id)
+
+                inf_cap = " ".join([rev_vocab[w] for w in
+                                        filter(lambda y: y != parser.pad_token_id and y != parser.eos_token_id, inf_cap)
+                                    ])
+
+                try:
+                    cap_scores.append(sem_parser(world_model, inf_cap))
+                except Exception as exc:
+                    print("Uncaught failure")
+                    print(exc)
+                    continue
+                    
+                print("-------------------------------------------")
+                print("%d | REF -> %s | INF -> %s" % (b_idx, ref_cap, inf_cap))
+                print(cap_scores[-1])
+                
             else:
                 print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
                 misses.append(inf_cap)
-
-        print("SHAPE CORRECT")
-        shape_correct = np.mean([w.shape_correct for w in cap_scores])
-        print(shape_correct)
-        print("COLOR CORRECT")
-        color_correct = np.mean([w.color_correct for w in cap_scores])
-        print(color_correct)
-        print("SPECIFIC CORRECT")
-        specify_true = np.mean([w.specify_true for w in cap_scores])
-        print(specify_true)
-        print("NO COLOR SPECIFY SHAPE")
-        no_color_specify_shape_true = np.mean([w.no_color_specify_shape_true for w in cap_scores])
-        print(no_color_specify_shape_true)
-        print("SPECIFY COLOR HYPERNYM SHAPE")
-        specify_color_hypernym_shape_true = np.mean([w.specify_color_hypernym_shape_true for w in cap_scores])
-        print(specify_color_hypernym_shape_true)
-        print("NO COLOR HYPERNYM SHAPE")
-        no_color_hypernym_shape_true = np.mean([w.no_color_hypernym_shape_true for w in cap_scores])
-        print(no_color_hypernym_shape_true)
-        print("INCORRECT")
-        false = np.mean([w.false for w in cap_scores])
-        print(false)
         
         avg_perplexity = np.mean(perplexities).squeeze()
         std_perplexity = np.std(perplexities).squeeze()
-        print("------------")
+        agree_rate = np.mean([sc.agreement for sc in cap_scores])
+        false_rate = np.mean([sc.false for sc in cap_scores])
+        ooscope_rate = np.mean([sc.out_of_scope for sc in cap_scores])
+        ungramm_rate = np.mean([sc.ungrammatical for sc in cap_scores])
+        
+        print("--------------------------")
         print("PERPLEXITY -> %.5f +- %.5f" % (avg_perplexity, std_perplexity))
+        print("AGREEMENT RATE -> %.2f" % agree_rate)
+        print("FALSE RATE -> %.2f" % false_rate)
+        print("OOSCOPE RATE -> %.2f" % ooscope_rate)
+        print("UNGRAMMATICAL RATE -> %.2f" % ungramm_rate)
+        print("misses -> %d" % sum(misses))
         
         new_summ = tf.Summary()
-        new_summ.value.add(tag="%s/shape_correct_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=shape_correct)
-        new_summ.value.add(tag="%s/color_correct_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=color_correct)
-        new_summ.value.add(tag="%s/specify_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=specify_true)
-        new_summ.value.add(tag="%s/no_color_specify_shape_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=no_color_specify_shape_true)
-        new_summ.value.add(tag="%s/specify_color_hypernym_shape_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=specify_color_hypernym_shape_true)
-        new_summ.value.add(tag="%s/no_color_hypernym_shape_true_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=no_color_hypernym_shape_true)
-        new_summ.value.add(tag="%s/false_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=false)
         new_summ.value.add(tag="%s/perplexity_avg_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=avg_perplexity)
         new_summ.value.add(tag="%s/perplexity_std_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
                            simple_value=std_perplexity)
+        new_summ.value.add(tag="%s/agree_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
+                            simple_value=agree_rate)
+        new_summ.value.add(tag="%s/false_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
+                            simple_value=false_rate)
+        new_summ.value.add(tag="%s/ooscope_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
+                            simple_value=ooscope_rate)
+        new_summ.value.add(tag="%s/ungramm_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
+                            simple_value=ungramm_rate)
         
         test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
         test_writer.flush()

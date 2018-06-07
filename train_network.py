@@ -21,11 +21,12 @@ from src.config import Config
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
+tf.flags.DEFINE_string("data_dir", "/home/trs46/data", "Location of ShapeWorld data")
 tf.flags.DEFINE_string("log_dir", "./models/final/sequence", "Directory location for logging")
 tf.flags.DEFINE_string("cnn_ckpt", "", "Directory to load CNN checkpoint")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
-tf.flags.DEFINE_string("name", "oneshape", "Shapeworld Data Name")
+tf.flags.DEFINE_string("name", "existential", "Shapeworld Data Name [existential, relational]")
+tf.flags.DEFINE_string("variant", "", "Shapeworld dataset variant [required]")
 tf.flags.DEFINE_string("glove_dir", "", "Directory of GloVe embeddings to load")
 tf.flags.DEFINE_integer("glove_dim", 50, "Dimensionality of GloVe embeddings")
 tf.flags.DEFINE_integer("batch_size", 128, "Training batch size")
@@ -39,12 +40,13 @@ def main(_):
     assert FLAGS.log_dir, "Must specify experiment to log to!"
     assert FLAGS.exp_tag, "Must specify experiment tag subfolder to log_dir %s" % FLAGS.log_dir
     assert FLAGS.cnn_ckpt, "Must specify where to load CNN checkpoint from!"
-
+    assert FLAGS.variant, "Must specific shapeworld variant"
+    
     # Build saving folders
     save_root = FLAGS.log_dir + os.sep + FLAGS.exp_tag
     train_path = save_root + os.sep + "train"
     eval_path = save_root + os.sep + "eval"
-    test_path = save_root + os.sep + "test"
+    test_path = save_root + os.sep + "test_2"
 
     if not tf.gfile.IsDirectory(train_path):
         tf.gfile.MakeDirs(train_path)
@@ -63,10 +65,10 @@ def main(_):
     tf.logging.info("Clean graph reset...")
 
     try:
-        dataset = Dataset.create(dtype=FLAGS.dtype, name=FLAGS.name, config=FLAGS.data_dir)
-        dataset.pixel_noise_stddev = 0.1
+        dataset = Dataset.create(dtype=FLAGS.dtype, name=FLAGS.name, variant=FLAGS.variant,
+                                 config=FLAGS.data_dir, pixel_noise_stddev=0.1)
     except Exception:
-        raise ValueError("config=%s did not point to a valid Shapeworld dataset" % FLAGS.data_dir)
+        raise ValueError("variant=%s did not point to a valid Shapeworld dataset" % FLAGS.variant)
 
     # Get parsing and parameter feats
     params = Config(mode="train", sw_specification=dataset.specification())
@@ -136,8 +138,7 @@ def main(_):
         
         for c_epoch in range(0, params.num_epochs):
             tf.logging.info("Running epoch %d" % c_epoch)
-            for c_step in trange(0, params.num_steps_per_epoch):
-                
+            for c_step in trange(params.num_steps_per_epoch * c_epoch, params.num_steps_per_epoch * (c_epoch + 1)):
                 if c_step in logging_points:
                     _, loss_, summaries = sess.run(fetches=[train_op, model.batch_loss, summary_op])
                     
@@ -169,6 +170,7 @@ def main(_):
 
         end_time = time.time()-start_train_time
         tf.logging.info('Training complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
+
 
 if __name__=="__main__":
     tf.app.run()
