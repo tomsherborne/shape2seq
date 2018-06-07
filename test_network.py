@@ -118,12 +118,15 @@ def main(_):
 
         sem_parser = parser.build_semparser()
 
-        idx_batch = dataset.generate(n=params.batch_size, mode=FLAGS.data_partition, include_model=True)
+        tf.logging.info("Loading Shapeworld data...")
+        idx_batch = dataset.generate(n=num_imgs, mode=FLAGS.data_partition, include_model=True)
         
         # Dict of lists -> list of dicts
         idx_batch = [{k: v[idx] for k, v in idx_batch.items()}
-                     for idx in range(0, params.batch_size)]
+                     for idx in range(0, num_imgs)]
         
+        tf.logging.info("Data loaded!..")
+
         for b_idx, batch in enumerate(idx_batch):
             reference_caps, inf_decoder_outputs, batch_perplexity = sess.run(fetches=[model.reference_captions,
                                                                                       model.inf_decoder_output,
