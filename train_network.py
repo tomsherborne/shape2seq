@@ -65,8 +65,8 @@ def main(_):
     tf.logging.info("Clean graph reset...")
 
     try:
-        dataset = Dataset.create(dtype=FLAGS.dtype, name=FLAGS.name, variant=FLAGS.variant,
-                                 config=FLAGS.data_dir, pixel_noise_stddev=0.1)
+        dataset = Dataset.create(dtype=FLAGS.dtype, name=FLAGS.name, variant=FLAGS.variant, config=FLAGS.data_dir)
+        dataset.pixel_noise_stddev = 0.1
     except Exception:
         raise ValueError("variant=%s did not point to a valid Shapeworld dataset" % FLAGS.variant)
 
