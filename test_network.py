@@ -125,14 +125,13 @@ def main(_):
                      for idx in range(0, params.batch_size)]
         
         for b_idx, batch in enumerate(idx_batch):
-            world_model = batch['world_model'][0]
             reference_caps, inf_decoder_outputs, batch_perplexity = sess.run(fetches=[model.reference_captions,
                                                                                       model.inf_decoder_output,
                                                                                       model.batch_perplexity],
                                                                              feed_dict={model.phase: 0,
-                                                                                        world_pl: batch['world'],
-                                                                                        caption_pl: batch['caption'],
-                                                                                        caption_len_pl: batch['caption_length']
+                                                                                        world_pl: [batch['world']],
+                                                                                        caption_pl: [batch['caption']],
+                                                                                        caption_len_pl: [batch['caption_length']]
                                                                               })
             
             perplexities.append(batch_perplexity)
@@ -147,7 +146,7 @@ def main(_):
                                     ])
 
                 try:
-                    cap_scores.append(sem_parser(world_model, inf_cap))
+                    cap_scores.append(sem_parser(batch['world_model'], inf_cap))
                 except Exception as exc:
                     print("Uncaught failure")
                     print(exc)
