@@ -23,7 +23,6 @@ tf.flags.DEFINE_string("log_dir", "./models/final/sequence", "Directory location
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
 tf.flags.DEFINE_string("name", "existential", "Shapeworld Data Name")
 tf.flags.DEFINE_string("variant", "", "Shapeworld dataset variant [required]")
-tf.flags.DEFINE_string("data_partition", "validation", "Which part of the dataset to test using")
 tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
 tf.flags.DEFINE_integer("num_imgs", 1000, "How many images to test with")
 tf.flags.DEFINE_string("decode_type", "greedy", "Greedy decoding [TRUE] or softmax sampling [FALSE]")
@@ -118,90 +117,92 @@ def main(_):
 
         sem_parser = parser.build_semparser()
 
-        tf.logging.info("Loading Shapeworld data...")
-        idx_batch = dataset.generate(n=num_imgs, mode=FLAGS.data_partition, include_model=True)
-        
-        # Dict of lists -> list of dicts
-        idx_batch = [{k: v[idx] for k, v in idx_batch.items()}
-                     for idx in range(0, num_imgs)]
-        
-        tf.logging.info("Data loaded!..")
+        for data_partition in ['validation', 'test']:
 
-        for b_idx, batch in enumerate(idx_batch):
-            reference_caps, inf_decoder_outputs, batch_perplexity = sess.run(fetches=[model.reference_captions,
-                                                                                      model.inf_decoder_output,
-                                                                                      model.batch_perplexity],
-                                                                             feed_dict={model.phase: 0,
-                                                                                        world_pl: [batch['world']],
-                                                                                        caption_pl: [batch['caption']],
-                                                                                        caption_len_pl: [batch['caption_length']]
-                                                                              })
+            tf.logging.info("Loading Shapeworld data...")
+            idx_batch = dataset.generate(n=num_imgs, mode=data_partition, include_model=True)
             
-            perplexities.append(batch_perplexity)
-            ref_cap = reference_caps.squeeze()
-            inf_cap = inf_decoder_outputs.sample_id.squeeze()
-            if inf_cap.ndim > 0 and inf_cap.ndim > 0:
+            # Dict of lists -> list of dicts
+            idx_batch = [{k: v[idx] for k, v in idx_batch.items()}
+                         for idx in range(0, num_imgs)]
+            
+            tf.logging.info("Data loaded!..")
+        
+            for b_idx, batch in enumerate(idx_batch):
+                reference_caps, inf_decoder_outputs, batch_perplexity = sess.run(fetches=[model.reference_captions,
+                                                                                          model.inf_decoder_output,
+                                                                                          model.batch_perplexity],
+                                                                                 feed_dict={model.phase: 0,
+                                                                                            world_pl: [batch['world']],
+                                                                                            caption_pl: [batch['caption']],
+                                                                                            caption_len_pl: [batch['caption_length']]
+                                                                                  })
                 
-                ref_cap = " ".join(rev_vocab[r] for r in ref_cap if r!=parser.pad_token_id)
-
-                inf_cap = " ".join([rev_vocab[w] for w in
-                                        filter(lambda y: y != parser.pad_token_id and y != parser.eos_token_id, inf_cap)
-                                    ])
-
-                try:
-                    cap_scores.append(sem_parser(batch['world_model'], inf_cap))
-                except Exception as exc:
-                    print("Uncaught failure")
-                    print(exc)
-                    continue
+                perplexities.append(batch_perplexity)
+                ref_cap = reference_caps.squeeze()
+                inf_cap = inf_decoder_outputs.sample_id.squeeze()
+                if inf_cap.ndim > 0 and inf_cap.ndim > 0:
                     
-                print("-------------------------------------------")
-                print("%d | REF -> %s | INF -> %s" % (b_idx, ref_cap, inf_cap))
-                print(cap_scores[-1])
-                
-            else:
-                print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
-                misses.append(inf_cap)
+                    ref_cap = " ".join(rev_vocab[r] for r in ref_cap if r!=parser.pad_token_id)
         
-        avg_perplexity = np.mean(perplexities).squeeze()
-        std_perplexity = np.std(perplexities).squeeze()
-        agree_rate = np.mean([sc.agreement for sc in cap_scores])
-        false_rate = np.mean([sc.false for sc in cap_scores])
-        ooscope_rate = np.mean([sc.out_of_scope for sc in cap_scores])
-        ungramm_rate = np.mean([sc.ungrammatical for sc in cap_scores])
+                    inf_cap = " ".join([rev_vocab[w] for w in
+                                            filter(lambda y: y != parser.pad_token_id and y != parser.eos_token_id, inf_cap)
+                                        ])
         
-        print("--------------------------")
-        print("PERPLEXITY -> %.5f +- %.5f" % (avg_perplexity, std_perplexity))
-        print("AGREEMENT RATE -> %.2f" % agree_rate)
-        print("FALSE RATE -> %.2f" % false_rate)
-        print("OOSCOPE RATE -> %.2f" % ooscope_rate)
-        print("UNGRAMMATICAL RATE -> %.2f" % ungramm_rate)
-        print("misses -> %d" % sum(misses))
-        
-        new_summ = tf.Summary()
-        new_summ.value.add(tag="%s/perplexity_avg_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=avg_perplexity)
-        new_summ.value.add(tag="%s/perplexity_std_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                           simple_value=std_perplexity)
-        new_summ.value.add(tag="%s/agree_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                            simple_value=agree_rate)
-        new_summ.value.add(tag="%s/false_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                            simple_value=false_rate)
-        new_summ.value.add(tag="%s/ooscope_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                            simple_value=ooscope_rate)
-        new_summ.value.add(tag="%s/ungramm_rate_%s_%s" % (FLAGS.data_partition, FLAGS.decode_type, FLAGS.name),
-                            simple_value=ungramm_rate)
-        
-        test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
-        test_writer.flush()
-        
-        test_outputs_fname = test_path + os.sep + "caps_%d_%s_%s.csv" % (tf.train.global_step(sess, model.global_step),
-                                                                   FLAGS.data_partition, FLAGS.decode_type)
-        
-        with open(test_outputs_fname, 'w', newline='\n') as fh:
-            writer = csv.writer(fh, delimiter=',')
-            writer.writerow(cap_scores[0]._fields)
-            writer.writerows(list(c) for c in cap_scores)
+                    try:
+                        cap_scores.append(sem_parser(batch['world_model'], inf_cap))
+                    except Exception as exc:
+                        print("Uncaught failure")
+                        print(exc)
+                        continue
+                        
+                    print("-------------------------------------------")
+                    print("%d | REF -> %s | INF -> %s" % (b_idx, ref_cap, inf_cap))
+                    print(cap_scores[-1])
+                    
+                else:
+                    print("Skipping %d as inf_cap %s is malformed" % (b_idx, inf_cap))
+                    misses.append(inf_cap)
+            
+            avg_perplexity = np.mean(perplexities).squeeze()
+            std_perplexity = np.std(perplexities).squeeze()
+            agree_rate = np.mean([sc.agreement for sc in cap_scores])
+            false_rate = np.mean([sc.false for sc in cap_scores])
+            ooscope_rate = np.mean([sc.out_of_scope for sc in cap_scores])
+            ungramm_rate = np.mean([sc.ungrammatical for sc in cap_scores])
+            
+            print("--------------------------")
+            print("PERPLEXITY -> %.5f +- %.5f" % (avg_perplexity, std_perplexity))
+            print("AGREEMENT RATE -> %.2f" % agree_rate)
+            print("FALSE RATE -> %.2f" % false_rate)
+            print("OOSCOPE RATE -> %.2f" % ooscope_rate)
+            print("UNGRAMMATICAL RATE -> %.2f" % ungramm_rate)
+            print("misses -> %d" % sum(misses))
+            
+            new_summ = tf.Summary()
+            new_summ.value.add(tag="%s/perplexity_avg_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
+                               simple_value=avg_perplexity)
+            new_summ.value.add(tag="%s/perplexity_std_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
+                               simple_value=std_perplexity)
+            new_summ.value.add(tag="%s/agree_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
+                                simple_value=agree_rate)
+            new_summ.value.add(tag="%s/false_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
+                                simple_value=false_rate)
+            new_summ.value.add(tag="%s/ooscope_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
+                                simple_value=ooscope_rate)
+            new_summ.value.add(tag="%s/ungramm_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
+                                simple_value=ungramm_rate)
+            
+            test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
+            test_writer.flush()
+            
+            test_outputs_fname = test_path + os.sep + "caps_%d_%s_%s.csv" % (tf.train.global_step(sess, model.global_step),
+                                                                       data_partition, FLAGS.decode_type)
+            
+            with open(test_outputs_fname, 'w', newline='\n') as fh:
+                writer = csv.writer(fh, delimiter=',')
+                writer.writerow(cap_scores[0]._fields)
+                writer.writerows(list(c) for c in cap_scores)
         
         end_time = time.time()-start_test_time
         tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
