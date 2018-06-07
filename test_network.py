@@ -93,7 +93,9 @@ def main(_):
     tf.logging.info("Running test for %d images", num_imgs)
 
     test_writer = tf.summary.FileWriter(logdir=test_path, graph=g)
-    
+
+    start_test_time = time.time()
+
     with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         # Model restoration
         restore_model.restore(sess, model_ckpt)
@@ -110,7 +112,6 @@ def main(_):
         tf.logging.info("Successfully loaded %s at global step = %d.",
                         os.path.basename(model_ckpt), global_step)
 
-        start_test_time = time.time()
         misses = []
         cap_scores = []
         perplexities = []
@@ -197,7 +198,7 @@ def main(_):
             test_writer.flush()
             
             test_outputs_fname = test_path + os.sep + "caps_%d_%s_%s.csv" % (tf.train.global_step(sess, model.global_step),
-                                                                       data_partition, FLAGS.decode_type)
+                                                                             data_partition, FLAGS.decode_type)
             
             with open(test_outputs_fname, 'w', newline='\n') as fh:
                 writer = csv.writer(fh, delimiter=',')
@@ -206,7 +207,10 @@ def main(_):
         
         end_time = time.time()-start_test_time
         tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
+        print()
+
 
 if __name__=="__main__":
     tf.app.run()
+
 
