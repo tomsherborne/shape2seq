@@ -235,7 +235,6 @@ class FullSequenceBatchParser(ParserBase):
             mrs_iter = next(Ace_.parse(sentence_list=[caption]))
         
             if not mrs_iter:
-                print("Ungrammatical caption. Not parsed")
                 return ParseScore(caption, 0, 0, 0, 1)
         
             # For each MRS parse, attempt a conversion to DMRS
@@ -245,7 +244,6 @@ class FullSequenceBatchParser(ParserBase):
                 
                     # If a DMRS conversion is found, break loop
                     if dmrs_conversion:
-                        print('DMRS Parse found')
                         break
                 # Catch a bad parsing err
                 except Exception as exc:
@@ -253,7 +251,6 @@ class FullSequenceBatchParser(ParserBase):
                     return ParseScore(caption, 0, 0, 1, 0)
         
             if not dmrs_conversion:
-                print('No DMRS Parse found')
                 return ParseScore(caption, 0, 0, 1, 0)
             else:
                 # DMRS parse found. Attempt to convert to ShapeWorld predicate analysis

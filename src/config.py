@@ -33,7 +33,7 @@ class Config(object):
         #   Shapeworld shard file feats -----------------
         self.instances_per_shard = 10000
         self.num_shards = 10 if self.mode == "train" else 1
-        self.num_epochs = 100 if self.mode == "train" else 1
+        self.num_epochs = 500 if self.mode == "train" else 1
         self.batch_size = 128 if self.mode == "train" else 1
         self.num_steps_per_epoch = int((np.floor(self.instances_per_shard) * self.num_shards)/self.batch_size)
         self.num_total_steps = int(np.floor(self.num_epochs * self.num_steps_per_epoch))
@@ -43,7 +43,7 @@ class Config(object):
         self.noise_axis = 3     #   RGB or B&W noise
         
         #   Model config --------------------------------
-        self.train_cnn = False
+        self.train_cnn = True
         self.train_embeddings = True
         self.cnn_checkpoint = None
         self.initializer = tf.contrib.layers.xavier_initializer
@@ -56,7 +56,7 @@ class Config(object):
         self.num_lstm_units = self.joint_embedding_size
         
         #   Training config -----------------------------
-        self.optimizer = "RMSProp"
+        self.optimizer = "Adam"
         self.initial_learning_rate = 0.001
         self.clip_gradients = 5.0
         self.max_checkpoints_to_keep = 10
