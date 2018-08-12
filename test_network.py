@@ -1,33 +1,34 @@
 """
 SEQ2SEQ IMAGE CAPTIONING
-Tom Sherborne 8/5/18
+Tom Sherborne 12/08/18
 """
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import os, time, csv
+from shapeworld import Dataset
+from shape2seq import CaptioningModel
+from shape2seq import FullSequenceBatchParser
+from shape2seq import Config
 
+import os
+import time
+import csv
 import numpy as np
 import tensorflow as tf
 seq2seq = tf.contrib.seq2seq
 
-from shapeworld import Dataset
-from src.model import CaptioningModel
-from src.batch_parser import FullSequenceBatchParser
-from src.config import Config
-
-FLAGS = tf.app.flags.FLAGS
-
-tf.flags.DEFINE_string("data_dir", "/home/trs46/data", "Location of ShapeWorld data")
-tf.flags.DEFINE_string("log_dir", "./models/final/sequence", "Directory location for logging")
+FLAGS = tf.flags.FLAGS
+tf.flags.DEFINE_string("data_dir", "./data", "Location of ShapeWorld data")
+tf.flags.DEFINE_string("log_dir", "./models", "Directory location for logging")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
 tf.flags.DEFINE_string("name", "existential", "Shapeworld Data Name")
 tf.flags.DEFINE_string("variant", "", "Shapeworld dataset variant [required]")
 tf.flags.DEFINE_string("exp_tag", "", "Subfolder labelling under log_dir for this experiment")
 tf.flags.DEFINE_integer("num_imgs", 1000, "How many images to test with")
 tf.flags.DEFINE_string("decode_type", "greedy", "Greedy decoding [TRUE] or softmax sampling [FALSE]")
-tf.flags.DEFINE_integer('pholder_sz', 8, "size of placeholder values in feed_dict")
+tf.flags.DEFINE_integer('max_seq_len', 8, "size of placeholder values in feed_dict")
 tf.logging.set_verbosity(tf.logging.INFO)
+
 
 def main(_):
     # FILESYSTEM SETUP ------------------------------------------------------------
@@ -73,7 +74,7 @@ def main(_):
         vocab, rev_vocab = parser.get_vocab()
         params.vocab_size = len(parser.tgt_vocab)
         
-        caption_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size, FLAGS.pholder_sz))
+        caption_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size, FLAGS.max_seq_len))
         caption_len_pl = tf.placeholder(dtype=tf.int32, shape=(params.batch_size,))
         world_pl = tf.placeholder(dtype=tf.float32, shape=(params.batch_size, 64, 64, 3))
         batch = {"caption": caption_pl, "caption_length": caption_len_pl, "world": world_pl}
@@ -90,10 +91,10 @@ def main(_):
         num_imgs = params.instances_per_shard * params.num_shards
     else:
         num_imgs = FLAGS.num_imgs
+
     tf.logging.info("Running test for %d images", num_imgs)
 
     test_writer = tf.summary.FileWriter(logdir=test_path, graph=g)
-
     start_test_time = time.time()
 
     with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
@@ -142,10 +143,9 @@ def main(_):
                 perplexities.append(batch_perplexity)
                 ref_cap = reference_caps.squeeze()
                 inf_cap = inf_decoder_outputs.sample_id.squeeze()
+
                 if inf_cap.ndim > 0 and inf_cap.ndim > 0:
-                    
                     ref_cap = " ".join(rev_vocab[r] for r in ref_cap if r!=parser.pad_token_id)
-        
                     inf_cap = " ".join([rev_vocab[w] for w in
                                             filter(lambda y: y != parser.pad_token_id and y != parser.eos_token_id, inf_cap)
                                         ])
@@ -186,13 +186,13 @@ def main(_):
             new_summ.value.add(tag="%s/perplexity_std_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
                                simple_value=std_perplexity)
             new_summ.value.add(tag="%s/agree_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
-                                simple_value=agree_rate)
+                               simple_value=agree_rate)
             new_summ.value.add(tag="%s/false_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
-                                simple_value=false_rate)
+                               simple_value=false_rate)
             new_summ.value.add(tag="%s/ooscope_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
-                                simple_value=ooscope_rate)
+                               simple_value=ooscope_rate)
             new_summ.value.add(tag="%s/ungramm_rate_%s_%s" % (data_partition, FLAGS.decode_type, FLAGS.name),
-                                simple_value=ungramm_rate)
+                               simple_value=ungramm_rate)
             
             test_writer.add_summary(new_summ, tf.train.global_step(sess, model.global_step))
             test_writer.flush()
@@ -207,10 +207,9 @@ def main(_):
         
         end_time = time.time()-start_test_time
         tf.logging.info('Testing complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
-        print()
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     tf.app.run()
 
 

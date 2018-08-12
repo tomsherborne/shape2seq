@@ -40,7 +40,7 @@ class Config(object):
 
         #   Data config ---------------------------------
         self.pixel_noise_stddev = 0.1
-        self.noise_axis = 3     #   RGB or B&W noise
+        self.noise_axis = 3     # RGB[3] or B&W[1] noise
         
         #   Model config --------------------------------
         self.train_cnn = True

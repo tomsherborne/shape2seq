@@ -6,3 +6,9 @@ Currently a research code mess to complete submission for the MPhil. This projec
 _Tom Sherborne_
 _MPhil ACS Student at the Computer Lab, Cambridge_
 
+Setup script
+```bash
+./install.sh # will setup a virtualenv for the project and then install Shapeworld + dependencies
+source ./venv/bin/activate # to run any train/test script from the project
+
+```

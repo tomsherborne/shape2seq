@@ -13,9 +13,8 @@ import tensorflow as tf
 seq2seq = tf.contrib.seq2seq
 
 from shapeworld import Dataset, tf_util
-from src.model import CaptioningModel
-from src.batch_parser import SimpleBatchParser
-from src.config import Config
+from shape2seq import CaptioningModel
+from shape2seq import Config
 
 FLAGS = tf.app.flags.FLAGS
 

@@ -1,28 +1,26 @@
 """
 SEQ2SEQ IMAGE CAPTIONING
-Tom Sherborne 8/5/18
+Tom Sherborne 12/08/18
 """
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import os, time
+from shapeworld import Dataset, tf_util
+from shape2seq import CaptioningModel
+from shape2seq import GloveLoader
+from shape2seq import FullSequenceBatchParser
+from shape2seq import Config
 
+import os
+import time
 import numpy as np
 import tensorflow as tf
 from tqdm import trange
 seq2seq = tf.contrib.seq2seq
 
-from shapeworld import Dataset, tf_util
-
-from src.model import CaptioningModel
-from src.glove_loader import GloveLoader
-from src.batch_parser import FullSequenceBatchParser
-from src.config import Config
-
-FLAGS = tf.app.flags.FLAGS
-
-tf.flags.DEFINE_string("data_dir", "/home/trs46/data", "Location of ShapeWorld data")
-tf.flags.DEFINE_string("log_dir", "./models/final/sequence", "Directory location for logging")
+FLAGS = tf.flags.FLAGS
+tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
+tf.flags.DEFINE_string("log_dir", "./model", "Directory location for logging")
 tf.flags.DEFINE_string("cnn_ckpt", "", "Directory to load CNN checkpoint")
 tf.flags.DEFINE_string("dtype", "agreement", "Shapeworld Data Type")
 tf.flags.DEFINE_string("name", "existential", "Shapeworld Data Name [existential, relational]")
@@ -33,6 +31,7 @@ tf.flags.DEFINE_integer("batch_size", 128, "Training batch size")
 tf.flags.DEFINE_string("exp_tag", "", "Sub-folder labelling under log_dir for this experiment")
 
 tf.logging.set_verbosity(tf.logging.INFO)
+
 
 def main(_):
     # FILESYSTEM SETUP ------------------------------------------------------------
@@ -46,7 +45,7 @@ def main(_):
     save_root = FLAGS.log_dir + os.sep + FLAGS.exp_tag
     train_path = save_root + os.sep + "train"
     eval_path = save_root + os.sep + "eval"
-    test_path = save_root + os.sep + "test_2"
+    test_path = save_root + os.sep + "test"
 
     if not tf.gfile.IsDirectory(train_path):
         tf.gfile.MakeDirs(train_path)
@@ -82,7 +81,6 @@ def main(_):
         params.vocab_size = len(parser.tgt_vocab)
         
         batch = tf_util.batch_records(dataset, mode="train", batch_size=params.batch_size)
-        
         model = CaptioningModel(config=params, batch_parser=parser)
 
         if FLAGS.glove_dir:
@@ -112,7 +110,7 @@ def main(_):
     train_writer = tf.summary.FileWriter(logdir=train_path, graph=g)
     
     tf.logging.info('###' * 20)
-    tf.logging.info("Begin shape2seq network training for %d steps" % params.num_total_steps)
+    tf.logging.info("Beginning shape2seq network training for %d steps" % params.num_total_steps)
     
     with tf.Session(graph=g, config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         
@@ -172,5 +170,5 @@ def main(_):
         tf.logging.info('Training complete in %.2f-secs/%.2f-mins/%.2f-hours', end_time, end_time/60, end_time/(60*60))
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     tf.app.run()

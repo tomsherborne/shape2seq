@@ -14,13 +14,11 @@ from tqdm import trange
 seq2seq = tf.contrib.seq2seq
 
 from shapeworld import Dataset, tf_util
+from shape2seq import CaptioningModel
+from shape2seq import GloveLoader
+from shape2seq import Config
 
-from src.model import CaptioningModel
-from src.glove_loader import GloveLoader
-from src.batch_parser import SimpleBatchParser
-from src.config import Config
-
-FLAGS = tf.app.flags.FLAGS
+FLAGS = tf.flags.FLAGS
 
 tf.flags.DEFINE_string("data_dir", "", "Location of ShapeWorld data")
 tf.flags.DEFINE_string("log_dir", "./models/final/short", "Directory location for logging")
